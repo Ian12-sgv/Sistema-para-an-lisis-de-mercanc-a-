@@ -9,7 +9,7 @@ from app.core.config import settings
 
 def build_connection_string() -> str:
     return (
-        "DRIVER={ODBC Driver 18 for SQL Server};"
+        f"DRIVER={{{settings.db_driver}}};"
         f"SERVER={settings.db_server};"
         f"DATABASE={settings.db_name};"
         f"UID={settings.db_user};"

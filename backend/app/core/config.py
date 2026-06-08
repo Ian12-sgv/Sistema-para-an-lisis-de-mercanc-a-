@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     api_host: str = Field(default="127.0.0.1", alias="API_HOST")
     api_port: int = Field(default=8000, alias="API_PORT")
 
+    db_driver: str = Field(default="ODBC Driver 17 for SQL Server", alias="DB_DRIVER")
     db_server: str = Field(default="SERVERDOS\\SERVERSQL_DOS", alias="DB_SERVER")
     db_name: str = Field(default="master", alias="DB_NAME")
     db_user: str = Field(default="sa", alias="DB_USER")

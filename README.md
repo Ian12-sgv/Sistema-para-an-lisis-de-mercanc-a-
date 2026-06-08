@@ -23,6 +23,7 @@ Variables principales:
 
 - `APP_ENV`: `local`, `production`, etc.
 - `CORS_ORIGINS`: origenes separados por coma para el front.
+- `DB_DRIVER`: controlador ODBC instalado, por defecto `ODBC Driver 17 for SQL Server`.
 - `DB_SERVER`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`: conexion SQL Server.
 - `DB_CONNECTION_TIMEOUT`, `DB_QUERY_TIMEOUT`: tiempos limite de conexion y consulta.
 
