@@ -1,8 +1,9 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Annotated
 
 from pydantic import Field, field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
@@ -21,12 +22,13 @@ class Settings(BaseSettings):
     db_connection_timeout: int = Field(default=5, alias="DB_CONNECTION_TIMEOUT")
     db_query_timeout: int = Field(default=60, alias="DB_QUERY_TIMEOUT")
 
-    cors_origins: list[str] = Field(
+    cors_origins: Annotated[list[str], NoDecode] = Field(
         default=[
             "http://localhost:5173",
             "http://127.0.0.1:5173",
             "http://localhost:5174",
             "http://127.0.0.1:5174",
+            "https://rotacionblumer.netlify.app",
         ],
         alias="CORS_ORIGINS",
     )
