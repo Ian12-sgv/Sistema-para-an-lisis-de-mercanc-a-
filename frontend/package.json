@@ -1,0 +1,46 @@
+{
+  "name": "unificador-consultas-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "dev:electron": "npm run build:electron && concurrently \"npm run dev\" \"wait-on http://127.0.0.1:5173 && electron .\"",
+    "build": "tsc && vite build && npm run build:electron",
+    "build:web": "tsc && vite build",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.0",
+    "electron": "^33.4.11",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11",
+    "wait-on": "^8.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "vitest": "^2.1.8",
+    "@testing-library/react": "^14.0.0",
+    "@testing-library/jest-dom": "^6.0.0"
+    ,"jsdom": "^22.1.0"
+    ,"@types/jsdom": "^20.0.0"
+  },
+  "vitest": {
+    "test": {
+      "environment": "jsdom"
+    }
+  },
+  "description": "",
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

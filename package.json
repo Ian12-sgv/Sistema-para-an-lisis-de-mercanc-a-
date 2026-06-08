@@ -1,0 +1,13 @@
+{
+  "name": "unificador-consultas",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "frontend:dev": "npm --prefix frontend run dev",
+    "frontend:electron": "npm --prefix frontend run dev:electron",
+    "frontend:typecheck": "npm --prefix frontend run typecheck",
+    "backend:dev": "uvicorn app.main:app --reload --host 127.0.0.1 --port 8000 --app-dir backend",
+    "backend:check": "python -m compileall backend/app"
+  }
+}
+
