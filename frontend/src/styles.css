@@ -25,6 +25,25 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+:root[data-theme="dark"] {
+  --background: oklch(0.2 0.025 250);
+  --foreground: oklch(0.94 0.012 240);
+  --surface-base: oklch(0.18 0.024 250);
+  --surface-card: oklch(0.24 0.026 250);
+  --primary: oklch(0.72 0.11 220);
+  --primary-foreground: oklch(0.14 0.022 250);
+  --brand-accent: oklch(0.73 0.12 220);
+  --brand-accent-hover: oklch(0.78 0.13 220);
+  --muted: oklch(0.31 0.026 250);
+  --muted-foreground: oklch(0.73 0.028 245);
+  --border: oklch(0.36 0.027 250);
+  --input: oklch(0.4 0.03 250);
+  --ring: oklch(0.72 0.11 220);
+  --destructive: oklch(0.68 0.18 25);
+  --success: oklch(0.73 0.14 145);
+  color-scheme: dark;
+}
+
 html,
 body,
 #root {
@@ -39,6 +58,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100%;
+  background: var(--surface-base);
   overflow: hidden;
 }
 
@@ -76,6 +96,11 @@ input:focus {
   min-height: 640px;
   overflow: hidden;
   background: var(--surface-base);
+  transition: grid-template-columns 180ms ease;
+}
+
+.app-shell.sidebar-collapsed {
+  grid-template-columns: 0 1fr;
 }
 
 .sidebar {
@@ -86,6 +111,15 @@ input:focus {
   background: var(--surface-card);
   min-height: 0;
   overflow: hidden;
+  transition:
+    opacity 160ms ease,
+    transform 180ms ease;
+}
+
+.sidebar-collapsed .sidebar {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-100%);
 }
 
 .brand {
@@ -240,6 +274,24 @@ input:focus {
   border-bottom: 1px solid var(--border);
   background: var(--surface-card);
   padding: 16px 32px;
+}
+
+.header-leading {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.header-leading > div:last-child {
+  min-width: 0;
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
 }
 
 .actions {
@@ -490,6 +542,11 @@ input:focus {
   color: var(--foreground);
 }
 
+:root[data-theme="dark"] .parameter-field input,
+:root[data-theme="dark"] .table-filter-field input {
+  background: oklch(0.29 0.028 250);
+}
+
 .parameter-field input:focus {
   background: var(--surface-card);
 }
@@ -519,6 +576,22 @@ input:focus {
   border-color: oklch(0.72 0.13 145 / 0.72);
   background: oklch(0.96 0.035 145);
   color: oklch(0.42 0.12 145);
+}
+
+:root[data-theme="dark"] .error-panel {
+  border-color: oklch(0.62 0.15 25);
+  background: oklch(0.28 0.055 25);
+  color: oklch(0.86 0.07 25);
+}
+
+:root[data-theme="dark"] .status-panel {
+  background: oklch(0.28 0.03 250);
+}
+
+:root[data-theme="dark"] .status-panel.success {
+  border-color: oklch(0.58 0.12 145);
+  background: oklch(0.28 0.055 145);
+  color: oklch(0.84 0.08 145);
 }
 
 .result-surface {
@@ -611,6 +684,10 @@ input:focus {
   cursor: pointer;
 }
 
+:root[data-theme="dark"] .table-filter-options label {
+  background: oklch(0.29 0.028 250);
+}
+
 .table-filter-options input {
   width: 15px;
   height: 15px;
@@ -667,6 +744,10 @@ th {
   letter-spacing: 0.04em;
 }
 
+:root[data-theme="dark"] th {
+  background: oklch(0.3 0.027 250 / 0.94);
+}
+
 td {
   color: var(--foreground);
 }
@@ -701,6 +782,10 @@ tbody tr:hover {
   background: oklch(0.94 0.018 240 / 0.48);
 }
 
+:root[data-theme="dark"] tbody tr:hover {
+  background: oklch(0.31 0.028 250 / 0.76);
+}
+
 .pagination {
   display: flex;
   align-items: center;
@@ -711,6 +796,10 @@ tbody tr:hover {
   padding: 12px 18px;
   color: var(--muted-foreground);
   font-size: 12px;
+}
+
+:root[data-theme="dark"] .pagination {
+  background: oklch(0.28 0.026 250 / 0.78);
 }
 
 .pagination-actions {
@@ -774,6 +863,10 @@ tbody tr:hover {
     grid-template-columns: 240px 1fr;
   }
 
+  .app-shell.sidebar-collapsed {
+    grid-template-columns: 0 1fr;
+  }
+
   .brand {
     padding: 16px;
   }
@@ -822,6 +915,11 @@ tbody tr:hover {
     overflow: visible;
   }
 
+  .app-shell.sidebar-collapsed {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
   .sidebar {
     position: sticky;
     top: 0;
@@ -834,6 +932,10 @@ tbody tr:hover {
     border-bottom: 1px solid var(--border);
     overflow: visible;
     box-shadow: 0 4px 14px oklch(0.28 0.05 250 / 0.06);
+  }
+
+  .sidebar-collapsed .sidebar {
+    display: none;
   }
 
   .brand {
@@ -900,6 +1002,10 @@ tbody tr:hover {
   .workspace-header {
     min-height: auto;
     padding: 16px 20px;
+  }
+
+  .header-leading {
+    align-items: flex-start;
   }
 
   .workspace > .result-surface {

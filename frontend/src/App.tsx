@@ -1,4 +1,4 @@
-import { BarChart3, ChevronLeft, ChevronRight, Database, Download, FileSpreadsheet, Play, RefreshCw } from "lucide-react";
+import { BarChart3, ChevronLeft, ChevronRight, Database, Download, FileSpreadsheet, Menu, Moon, Play, RefreshCw, Sun } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { fetchDashboardSummary, fetchQueries, runQuery } from "./api";
@@ -287,6 +287,8 @@ export function App() {
   const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary | null>(null);
   const [unifiedDetailsByBarcode, setUnifiedDetailsByBarcode] = useState<Record<string, Record<string, unknown>>>({});
   const [unifiedDetailMessage, setUnifiedDetailMessage] = useState<string | null>(null);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isDarkTheme, setIsDarkTheme] = useState(false);
   const pageCacheRef = useRef(new Map<string, QueryResult>());
   const queryStateRef = useRef(new Map<string, SavedQueryState>());
 
@@ -692,6 +694,10 @@ export function App() {
     void loadQueries();
   }, []);
 
+  useEffect(() => {
+    document.documentElement.dataset.theme = isDarkTheme ? "dark" : "light";
+  }, [isDarkTheme]);
+
   // Cuando el backend indique que está "isLoading" (construyendo snapshot), sondeamos periódicamente
   useEffect(() => {
     if (!activeQuery || !result || !("isLoading" in result) || !result.isLoading) return;
@@ -735,7 +741,7 @@ export function App() {
   }, [activeQuery, hasExecuted, isResultLoading, isRunningActiveQuery, page]);
 
   return (
-    <main className="app-shell">
+    <main className={`app-shell ${isSidebarCollapsed ? "sidebar-collapsed" : ""}`}>
       <aside className="sidebar">
         <div className="brand">
           <Database size={24} aria-hidden />
@@ -781,15 +787,38 @@ export function App() {
 
       <section className="workspace">
         <header className="workspace-header">
-          <div>
-            <h2>{isDashboard ? "Dashboard" : activeQuery?.name ?? "Consultas"}</h2>
-            <p>
-              {isDashboard
-                ? "Graficas generadas desde los endpoints de cada consulta."
-                : activeQuery
-                  ? activeQuery.description
-                  : "No hay consultas registradas"}
-            </p>
+          <div className="header-leading">
+            <div className="header-controls">
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => setIsSidebarCollapsed((current) => !current)}
+                title={isSidebarCollapsed ? "Mostrar barra lateral" : "Ocultar barra lateral"}
+                aria-label={isSidebarCollapsed ? "Mostrar barra lateral" : "Ocultar barra lateral"}
+                aria-expanded={!isSidebarCollapsed}
+              >
+                <Menu size={18} aria-hidden />
+              </button>
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => setIsDarkTheme((current) => !current)}
+                title={isDarkTheme ? "Usar tema claro" : "Usar tema oscuro"}
+                aria-label={isDarkTheme ? "Usar tema claro" : "Usar tema oscuro"}
+              >
+                {isDarkTheme ? <Sun size={18} aria-hidden /> : <Moon size={18} aria-hidden />}
+              </button>
+            </div>
+            <div>
+              <h2>{isDashboard ? "Dashboard" : activeQuery?.name ?? "Consultas"}</h2>
+              <p>
+                {isDashboard
+                  ? "Graficas generadas desde los endpoints de cada consulta."
+                  : activeQuery
+                    ? activeQuery.description
+                    : "No hay consultas registradas"}
+              </p>
+            </div>
           </div>
           {isDashboard ? (
             <div className="actions">
