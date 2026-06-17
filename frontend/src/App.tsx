@@ -17,6 +17,7 @@ const PAGE_SIZE = 100;
 const EXPORT_PAGE_SIZE = 1000;
 const MAX_EXPORT_PAGES = 10000;
 const DASHBOARD_ID = "__dashboard";
+const THEME_STORAGE_KEY = "unificador-consultas-theme";
 const SALES_COLUMNS = [
   "Existencia actual",
   "Suma Existencia",
@@ -77,6 +78,12 @@ function buildQueryStateKey(queryId: string, parameters: Record<string, string>)
     parameters,
     pageSize: PAGE_SIZE,
   });
+}
+
+function getInitialDarkTheme() {
+  if (typeof window === "undefined") return false;
+
+  return window.localStorage.getItem(THEME_STORAGE_KEY) === "dark";
 }
 
 interface SavedQueryState {
@@ -288,7 +295,7 @@ export function App() {
   const [unifiedDetailsByBarcode, setUnifiedDetailsByBarcode] = useState<Record<string, Record<string, unknown>>>({});
   const [unifiedDetailMessage, setUnifiedDetailMessage] = useState<string | null>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [isDarkTheme, setIsDarkTheme] = useState(false);
+  const [isDarkTheme, setIsDarkTheme] = useState(getInitialDarkTheme);
   const pageCacheRef = useRef(new Map<string, QueryResult>());
   const queryStateRef = useRef(new Map<string, SavedQueryState>());
 
@@ -696,6 +703,7 @@ export function App() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = isDarkTheme ? "dark" : "light";
+    window.localStorage.setItem(THEME_STORAGE_KEY, isDarkTheme ? "dark" : "light");
   }, [isDarkTheme]);
 
   // Cuando el backend indique que está "isLoading" (construyendo snapshot), sondeamos periódicamente
