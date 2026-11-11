@@ -1,8 +1,8 @@
 # Imagen del backend (FastAPI + ODBC Driver 17 para SQL Server).
 # El frontend se publica aparte (Netlify).
 #
-# Construir:  docker build -t sistemaspdb/unificador-consultas-api .
-# Ejecutar:   docker run -p 8000:8000 --env-file .env -v unificador-cache:/app/.cache sistemaspdb/unificador-consultas-api
+# Construir:  docker build -t sistemaspdb/rotacion .
+# Ejecutar:   docker run -p 8000:8000 --env-file .env -v unificador-cache:/app/.cache sistemaspdb/rotacion
 
 # bookworm (Debian 12): Microsoft publica msodbcsql17 para esta versión.
 FROM python:3.13-slim-bookworm

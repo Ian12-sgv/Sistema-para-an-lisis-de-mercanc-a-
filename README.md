@@ -88,14 +88,14 @@ backend\.venv\Scripts\python.exe -m uvicorn app.main:app --app-dir backend --hos
 
 ### Backend con Docker
 
-Imagen publicada: `sistemaspdb/unificador-consultas-api` (etiquetas por fecha `AAAA.MM.DD` y `latest`).
+Imagen publicada: `sistemaspdb/rotacion` (etiquetas por fecha `AAAA.MM.DD` y `latest`).
 Incluye ODBC Driver 17; la configuracion se pasa por variables de entorno, nunca dentro de la imagen.
 
 ```powershell
-docker run -d --name unificador-api -p 127.0.0.1:8000:8000 --env-file .env -v unificador-cache:/app/.cache --restart unless-stopped sistemaspdb/unificador-consultas-api:latest
+docker run -d --name unificador-api -p 127.0.0.1:8000:8000 --env-file .env -v unificador-cache:/app/.cache --restart unless-stopped sistemaspdb/rotacion:latest
 ```
 
-El volumen `unificador-cache` conserva los snapshots entre reinicios. Para construirla localmente: `docker build -t sistemaspdb/unificador-consultas-api .`
+El volumen `unificador-cache` conserva los snapshots entre reinicios. Para construirla localmente: `docker build -t sistemaspdb/rotacion .`
 
 ### Frontend en Netlify
 
