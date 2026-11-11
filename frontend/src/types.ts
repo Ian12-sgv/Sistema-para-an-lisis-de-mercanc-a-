@@ -27,6 +27,12 @@ export interface QueryResult {
   isComplete: boolean;
 }
 
+export interface SnapshotStatus {
+  queryId: string;
+  ready: boolean;
+  building: boolean;
+}
+
 export interface UnifiedQueryResult {
   results: QueryResult[];
   columns: string[];

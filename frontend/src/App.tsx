@@ -1,7 +1,7 @@
 import { BarChart3, ChevronLeft, ChevronRight, Database, Download, FileSpreadsheet, Menu, Moon, Play, RefreshCw, Sun } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { fetchDashboardSummary, fetchQueries, runQuery } from "./api";
+import { fetchDashboardSummary, fetchQueries, fetchSnapshotStatus, runQuery } from "./api";
 import {
   buildQueryRunParameters,
   filterRowsByAdjustment,
@@ -15,6 +15,9 @@ import type { DashboardSummary, QueryDefinition, QueryResult, UnifiedQueryResult
 type ResultState = QueryResult | UnifiedQueryResult | null;
 const PAGE_SIZE = 100;
 const EXPORT_PAGE_SIZE = 1000;
+const SNAPSHOT_POLL_INTERVAL_MS = 2000;
+
+type ResultContext = { queryId: string; parameters: Record<string, string>; page: number };
 const MAX_EXPORT_PAGES = 10000;
 const DASHBOARD_ID = "__dashboard";
 const THEME_STORAGE_KEY = "unificador-consultas-theme";
@@ -297,6 +300,8 @@ export function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isDarkTheme, setIsDarkTheme] = useState(getInitialDarkTheme);
   const pageCacheRef = useRef(new Map<string, QueryResult>());
+  // Parámetros con los que se obtuvo cada resultado; el sondeo los usa en vez de los del formulario.
+  const resultContextRef = useRef(new WeakMap<QueryResult, ResultContext>());
   const queryStateRef = useRef(new Map<string, SavedQueryState>());
 
   const activeQuery = queries.find((query) => query.id === activeQueryId) ?? null;
@@ -402,7 +407,14 @@ export function App() {
 
     try {
       const nextResult = await runQuery(queryId, parameters, requestedPage, PAGE_SIZE);
-      pageCacheRef.current.set(cacheKey, nextResult);
+      resultContextRef.current.set(nextResult, { queryId, parameters, page: requestedPage });
+
+      // Una vista parcial (isLoading) no se guarda en caché: al volver a la página
+      // se pide de nuevo y el servidor ya puede responder desde el snapshot completo.
+      if (!nextResult.isLoading) {
+        pageCacheRef.current.set(cacheKey, nextResult);
+      }
+
       queryStateRef.current.set(buildQueryStateKey(queryId, parameters), {
         page: requestedPage,
         result: nextResult,
@@ -706,47 +718,59 @@ export function App() {
     window.localStorage.setItem(THEME_STORAGE_KEY, isDarkTheme ? "dark" : "light");
   }, [isDarkTheme]);
 
-  // Cuando el backend indique que está "isLoading" (construyendo snapshot), sondeamos periódicamente
+  // Mientras el servidor construye el snapshot (isLoading), se sondea solo el estado,
+  // que no toca SQL Server. La consulta se repite una única vez, cuando el snapshot está listo.
   useEffect(() => {
-    if (!activeQuery || !result || !("isLoading" in result) || !result.isLoading) return;
+    if (!result || !("isLoading" in result) || !result.isLoading) return;
 
+    const context = resultContextRef.current.get(result);
+    if (!context) return;
+
+    const { queryId, parameters, page: resultPage } = context;
     let cancelled = false;
+    let timer: number | undefined;
+
+    const scheduleNextPoll = (delay = SNAPSHOT_POLL_INTERVAL_MS) => {
+      timer = window.setTimeout(() => void poll(), delay);
+    };
 
     const poll = async () => {
       try {
-        const runParameters = buildRunParameters(activeQuery.id);
-        const updated = await runQuery(activeQuery.id, runParameters, result.page ?? 1, PAGE_SIZE);
-
+        const status = await fetchSnapshotStatus(queryId, parameters);
         if (cancelled) return;
 
-        pageCacheRef.current.set(buildPageCacheKey(activeQuery.id, runParameters, updated.page), updated);
-        setResult(updated);
-
-        if ("isLoading" in updated && updated.isLoading) {
-          setTimeout(poll, 1500);
+        if (status.building) {
+          scheduleNextPoll();
+          return;
         }
-      } catch (err) {
-        // silencioso: no bloquear la UI por errores de sondeo
-        if (!cancelled) setTimeout(poll, 2000);
+
+        if (!status.ready) {
+          setError("No se pudo preparar la consulta completa. Se muestra una vista parcial; vuelve a ejecutarla para reintentar.");
+          return;
+        }
+
+        const updated = await runQuery(queryId, parameters, resultPage, PAGE_SIZE);
+        if (cancelled) return;
+
+        resultContextRef.current.set(updated, context);
+        if (!updated.isLoading) {
+          pageCacheRef.current.set(buildPageCacheKey(queryId, parameters, resultPage), updated);
+        }
+        queryStateRef.current.set(buildQueryStateKey(queryId, parameters), { page: resultPage, result: updated });
+        setResult(updated);
+      } catch {
+        // Un fallo de red al sondear no debe bloquear la UI: se reintenta más despacio.
+        if (!cancelled) scheduleNextPoll(SNAPSHOT_POLL_INTERVAL_MS * 2);
       }
     };
 
-    void poll();
+    scheduleNextPoll();
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
-  }, [activeQuery, isResultLoading, parameterValues]);
-
-  useEffect(() => {
-    if (!activeQuery || !hasExecuted || !isResultLoading || isRunningActiveQuery) return;
-
-    const timer = window.setTimeout(() => {
-      void handleRunSingle(activeQuery.id, page);
-    }, 1200);
-
-    return () => window.clearTimeout(timer);
-  }, [activeQuery, hasExecuted, isResultLoading, isRunningActiveQuery, page]);
+  }, [result]);
 
   return (
     <main className={`app-shell ${isSidebarCollapsed ? "sidebar-collapsed" : ""}`}>

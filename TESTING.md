@@ -28,7 +28,7 @@ Cobertura principal:
 Resultado esperado actual:
 
 ```text
-17 passed
+28 passed
 ```
 
 ## Frontend
@@ -61,7 +61,7 @@ Cobertura principal:
 Resultado esperado actual:
 
 ```text
-8 passed
+14 passed
 ```
 
 ## Nota operativa

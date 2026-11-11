@@ -1,4 +1,4 @@
-import type { DashboardSummary, QueryDefinition, QueryResult, UnifiedQueryResult } from "./types";
+import type { DashboardSummary, QueryDefinition, QueryResult, SnapshotStatus, UnifiedQueryResult } from "./types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000";
 
@@ -41,6 +41,14 @@ export function runQuery(queryId: string, parameters: Record<string, string> = {
   return request<QueryResult>("/api/queries/run", {
     method: "POST",
     body: JSON.stringify({ queryId, parameters, page, pageSize }),
+  });
+}
+
+/** Consulta ligera para sondear mientras se prepara la caché: no ejecuta SQL en el servidor. */
+export function fetchSnapshotStatus(queryId: string, parameters: Record<string, string> = {}) {
+  return request<SnapshotStatus>("/api/queries/status", {
+    method: "POST",
+    body: JSON.stringify({ queryId, parameters }),
   });
 }
 

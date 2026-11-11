@@ -117,3 +117,14 @@ class DashboardSummary(BaseModel):
 class CacheWarmupRequest(BaseModel):
     query_id: str = Field(alias="queryId")
     parameters: dict[str, Any] = Field(default_factory=dict)
+
+
+class SnapshotStatusRequest(BaseModel):
+    query_id: str = Field(alias="queryId")
+    parameters: dict[str, Any] = Field(default_factory=dict)
+
+
+class SnapshotStatus(BaseModel):
+    query_id: str = Field(alias="queryId")
+    ready: bool
+    building: bool

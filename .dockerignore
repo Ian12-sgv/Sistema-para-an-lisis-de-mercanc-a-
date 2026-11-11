@@ -1,0 +1,21 @@
+# Secretos y configuración local: nunca dentro de la imagen
+.env
+.env.*
+!.env.example
+
+# Control de versiones, cachés y entornos locales
+.git
+.cache
+**/.venv
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/*.egg-info
+*.log
+
+# No forman parte de la imagen del backend
+frontend
+backend/tests
+deploy
+docs
+netlify.toml

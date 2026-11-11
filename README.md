@@ -86,6 +86,17 @@ Comando recomendado para FastAPI:
 backend\.venv\Scripts\python.exe -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
 ```
 
+### Backend con Docker
+
+Imagen publicada: `sistemaspdb/unificador-consultas-api` (etiquetas por fecha `AAAA.MM.DD` y `latest`).
+Incluye ODBC Driver 17; la configuracion se pasa por variables de entorno, nunca dentro de la imagen.
+
+```powershell
+docker run -d --name unificador-api -p 127.0.0.1:8000:8000 --env-file .env -v unificador-cache:/app/.cache --restart unless-stopped sistemaspdb/unificador-consultas-api:latest
+```
+
+El volumen `unificador-cache` conserva los snapshots entre reinicios. Para construirla localmente: `docker build -t sistemaspdb/unificador-consultas-api .`
+
 ### Frontend en Netlify
 
 El archivo [`netlify.toml`](netlify.toml) configura:

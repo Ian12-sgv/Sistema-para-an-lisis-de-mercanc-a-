@@ -1,4 +1,5 @@
 from app.services import query_runner
+from app.services.query_runner import unified
 
 
 def test_run_unified_query_page1_returns_base_rows_without_loading(monkeypatch):
@@ -10,8 +11,8 @@ def test_run_unified_query_page1_returns_base_rows_without_loading(monkeypatch):
         assert page_size == 100
         return sample_columns, sample_rows, len(sample_rows), 2, True
 
-    monkeypatch.setattr(query_runner, "settings", type("SettingsStub", (), {"has_database_credentials": True})())
-    monkeypatch.setattr(query_runner, "build_unified_base_page", fake_build_base_page)
+    monkeypatch.setattr(unified, "settings", type("SettingsStub", (), {"has_database_credentials": True})())
+    monkeypatch.setattr(unified, "build_unified_base_page", fake_build_base_page)
 
     result = query_runner.run_unified_query({"fechaDesde": "2026-05-14", "fechaHasta": "2026-05-21"}, page=1, page_size=100)
 
@@ -33,7 +34,8 @@ def test_build_unified_first_page_calls_execute_query_with_expected_parameter_co
 
         return ["Codigo Barra"], [{"Codigo Barra": "111"}, {"Codigo Barra": "222"}]
 
-    monkeypatch.setattr(query_runner, "execute_query", fake_execute_query)
+    monkeypatch.setattr(unified, "execute_query", fake_execute_query)
+    clear_query_cache()
 
     params = {"fechaDesde": "2026-05-14", "fechaHasta": "2026-05-21"}
     cols, rows, est_total, total_pages, has_more = query_runner.build_unified_first_page(params, page_size=100)
@@ -44,13 +46,12 @@ def test_build_unified_first_page_calls_execute_query_with_expected_parameter_co
     detail_call = calls[1]
 
     assert "WITH CommonCodes AS" in code_call["sql"]
-    assert "OFFSET ? ROWS FETCH NEXT ? ROWS ONLY" in code_call["sql"]
+    assert "OFFSET" not in code_call["sql"]
     assert "WHERE CAST(CodigoBarra AS VARCHAR(50)) IN (?, ?)" in detail_call["sql"]
 
-    assert len(code_call["params"]) == 10
-    parsed_code_dates = [p.isoformat() if hasattr(p, "isoformat") else str(p) for p in code_call["params"][:8]]
+    assert len(code_call["params"]) == 8
+    parsed_code_dates = [p.isoformat() if hasattr(p, "isoformat") else str(p) for p in code_call["params"]]
     assert parsed_code_dates == ["2026-05-14", "2026-05-21"] * 4
-    assert code_call["params"][8:] == [0, 101]
 
     detail_params = detail_call["params"]
     parsed_detail_dates = [p.isoformat() if hasattr(p, "isoformat") else str(p) for p in detail_params[:2]]
@@ -64,12 +65,60 @@ def test_build_unified_first_page_calls_execute_query_with_expected_parameter_co
     assert has_more is False
 
 
+def test_unified_pages_reuse_common_codes_instead_of_requerying(monkeypatch):
+    calls = {"codes": 0, "detail": []}
+    all_codes = [f"{i:03d}" for i in range(5)]
+
+    def fake_execute_query(sql, params):
+        if "CommonCodes" in sql:
+            calls["codes"] += 1
+            return ["CodigoBarra"], [{"CodigoBarra": code} for code in all_codes]
+
+        page_codes = params[2:]
+        calls["detail"].append(page_codes)
+        return ["Codigo Barra"], [{"Codigo Barra": code} for code in page_codes]
+
+    monkeypatch.setattr(unified, "execute_query", fake_execute_query)
+    clear_query_cache()
+
+    params = {"fechaDesde": "2026-04-01", "fechaHasta": "2026-04-07"}
+    _cols, first_rows, _total, _pages, first_has_more = unified.build_unified_base_page(params, 1, 2)
+    _cols, second_rows, _total, _pages, second_has_more = unified.build_unified_base_page(params, 2, 2)
+    _cols, last_rows, _total, _pages, last_has_more = unified.build_unified_base_page(params, 3, 2)
+
+    assert calls["codes"] == 1
+    assert calls["detail"] == [["000", "001"], ["002", "003"], ["004"]]
+    assert [row["Codigo Barra"] for row in first_rows + second_rows + last_rows] == all_codes
+    assert (first_has_more, second_has_more, last_has_more) == (True, True, False)
+
+
+def test_unified_page_past_the_end_returns_empty(monkeypatch):
+    monkeypatch.setattr(
+        unified,
+        "execute_query",
+        lambda sql, params: (["CodigoBarra"], [{"CodigoBarra": "111"}]) if "CommonCodes" in sql else (_ for _ in ()).throw(AssertionError("no detail query expected")),
+    )
+    clear_query_cache()
+
+    _cols, rows, _total, _pages, has_more = unified.build_unified_base_page(
+        {"fechaDesde": "2026-03-01", "fechaHasta": "2026-03-02"}, 5, 10
+    )
+
+    assert rows == []
+    assert has_more is False
+
+
+def clear_query_cache():
+    with query_runner.query_cache._lock:
+        query_runner.query_cache._items.clear()
+
+
 def test_run_unified_query_base_page_failure_is_not_hidden(monkeypatch):
     def fake_build_base_page(params, page, page_size):
         raise RuntimeError("DB preview failed")
 
-    monkeypatch.setattr(query_runner, "settings", type("SettingsStub", (), {"has_database_credentials": True})())
-    monkeypatch.setattr(query_runner, "build_unified_base_page", fake_build_base_page)
+    monkeypatch.setattr(unified, "settings", type("SettingsStub", (), {"has_database_credentials": True})())
+    monkeypatch.setattr(unified, "build_unified_base_page", fake_build_base_page)
 
     try:
         query_runner.run_unified_query({"fechaDesde": "2026-05-14", "fechaHasta": "2026-05-21"}, page=1, page_size=100)

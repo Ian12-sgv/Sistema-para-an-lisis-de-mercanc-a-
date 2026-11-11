@@ -2,9 +2,9 @@ import logging
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
-from app.models.query import CacheWarmupRequest, DashboardRequest, DashboardSummary, QueryDefinition, QueryResult, QueryRunRequest, UnifiedQueryRequest, UnifiedQueryResult
+from app.models.query import CacheWarmupRequest, DashboardRequest, DashboardSummary, QueryDefinition, QueryResult, QueryRunRequest, SnapshotStatus, SnapshotStatusRequest, UnifiedQueryRequest, UnifiedQueryResult
 from app.services.query_catalog import get_query, list_queries
-from app.services.query_runner import build_dashboard_summary, run_query, unify_queries
+from app.services.query_runner import build_dashboard_summary, get_query_snapshot_status, run_query, unify_queries
 
 router = APIRouter(prefix="/queries", tags=["queries"])
 logger = logging.getLogger(__name__)
@@ -59,6 +59,17 @@ def get_dashboard_summary(request: DashboardRequest):
     except Exception as error:
         logger.exception("Dashboard summary failed")
         raise HTTPException(status_code=500, detail="No se pudo generar el dashboard.") from error
+
+
+@router.post("/status", response_model=SnapshotStatus)
+def get_snapshot_status(request: SnapshotStatusRequest):
+    """Consulta ligera para sondear: no toca SQL Server."""
+    try:
+        return get_query_snapshot_status(request.query_id, request.parameters)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @router.post("/cache/warmup")

@@ -1,5 +1,6 @@
 from app.services import query_runner
 from app.services.query_catalog import get_query
+from app.services.query_runner import details, unified
 from app.services.unified_snapshot import (
     append_snapshot_rows,
     build_snapshot_id,
@@ -19,7 +20,7 @@ def test_common_barcodes_are_intersection_and_persisted(monkeypatch):
         query_runner.query_cache._items.clear()
 
     # make source SQL identifiable for this test
-    monkeypatch.setattr(query_runner, "get_source_barcode_sql", lambda qid: f"__SRC__{qid}__")
+    monkeypatch.setattr(unified, "get_source_barcode_sql", lambda qid: f"__SRC__{qid}__")
 
     calls = {"count": 0}
 
@@ -33,16 +34,7 @@ def test_common_barcodes_are_intersection_and_persisted(monkeypatch):
         }
         return ["CodigoBarra"], rows_by_source[calls["count"]]
 
-    # Make source SQL easily identifiable to avoid ambiguity with other SQL text
-    monkeypatch.setattr(query_runner, "get_source_barcode_sql", lambda qid: f"__SRC__{qid}__")
-    # ensure get_source_barcode_sql returns an identifiable marker
-    monkeypatch.setattr(query_runner, "get_source_barcode_sql", lambda qid: f"__SRC__{qid}__")
-    # Make get_source_barcode_sql deterministic so fake_execute_query can detect sources
-    monkeypatch.setattr(query_runner, "get_source_barcode_sql", lambda qid: f"__SRC__{qid}__")
-    # ensure get_source_barcode_sql returns identifiable markers for this test
-    monkeypatch.setattr(query_runner, "get_source_barcode_sql", lambda qid: f"__SRC__{qid}__")
-    monkeypatch.setattr(query_runner, "get_source_barcode_sql", lambda qid: f"__SRC__{qid}__")
-    monkeypatch.setattr(query_runner, "execute_query", fake_execute_query)
+    monkeypatch.setattr(unified, "execute_query", fake_execute_query)
 
     try:
         first = query_runner.get_common_barcodes(parameters)
@@ -181,7 +173,7 @@ def test_run_unified_detail_kardex_calculates_summary_in_python(monkeypatch):
             ],
         )
 
-    monkeypatch.setattr(query_runner, "execute_query", fake_execute_query)
+    monkeypatch.setattr(details, "execute_query", fake_execute_query)
 
     result = query_runner.run_query(
         "kardex",
@@ -222,7 +214,7 @@ def test_run_unified_query_uses_base_page_when_unified_filters_are_present(monke
         "codigoBarra": "5029900018767",
     }
 
-    monkeypatch.setattr(query_runner, "settings", type("SettingsStub", (), {"has_database_credentials": True})())
+    monkeypatch.setattr(unified, "settings", type("SettingsStub", (), {"has_database_credentials": True})())
 
     called = {"base_page": False}
 
@@ -233,7 +225,7 @@ def test_run_unified_query_uses_base_page_when_unified_filters_are_present(monke
         assert page_size == 10
         return ["Codigo Barra"], [{"Codigo Barra": "5029900018767"}], 11, 3, True
 
-    monkeypatch.setattr(query_runner, "build_unified_base_page", fake_build_unified_base_page)
+    monkeypatch.setattr(unified, "build_unified_base_page", fake_build_unified_base_page)
 
     result = query_runner.run_unified_query(parameters, page=2, page_size=10)
 
@@ -253,7 +245,7 @@ def test_run_unified_query_uses_base_page_when_no_filters(monkeypatch):
         "fechaHasta": "2026-05-21",
     }
 
-    monkeypatch.setattr(query_runner, "settings", type("SettingsStub", (), {"has_database_credentials": True})())
+    monkeypatch.setattr(unified, "settings", type("SettingsStub", (), {"has_database_credentials": True})())
 
     called = {"base_page": False}
 
@@ -270,7 +262,7 @@ def test_run_unified_query_uses_base_page_when_no_filters(monkeypatch):
             True,
         )
 
-    monkeypatch.setattr(query_runner, "build_unified_base_page", fake_build_unified_base_page)
+    monkeypatch.setattr(unified, "build_unified_base_page", fake_build_unified_base_page)
 
     result = query_runner.run_unified_query(parameters, page=1, page_size=4)
 
@@ -288,7 +280,7 @@ def test_run_unified_query_returns_base_page_without_background_snapshot(monkeyp
         "fechaHasta": "2026-05-27",
     }
 
-    monkeypatch.setattr(query_runner, "settings", type("SettingsStub", (), {"has_database_credentials": True})())
+    monkeypatch.setattr(unified, "settings", type("SettingsStub", (), {"has_database_credentials": True})())
 
     called = {"base_page": False}
 
@@ -299,7 +291,7 @@ def test_run_unified_query_returns_base_page_without_background_snapshot(monkeyp
         assert page_size == 100
         return ["Codigo Barra"], [{"Codigo Barra": "111"}], 2, 2, True
 
-    monkeypatch.setattr(query_runner, "build_unified_base_page", fake_build_unified_base_page)
+    monkeypatch.setattr(unified, "build_unified_base_page", fake_build_unified_base_page)
 
     result = query_runner.run_unified_query(parameters, page=1, page_size=100)
 
@@ -318,9 +310,9 @@ def test_run_unified_query_propagates_base_page_errors(monkeypatch):
         "fechaHasta": "2026-05-27",
     }
 
-    monkeypatch.setattr(query_runner, "settings", type("SettingsStub", (), {"has_database_credentials": True})())
+    monkeypatch.setattr(unified, "settings", type("SettingsStub", (), {"has_database_credentials": True})())
     monkeypatch.setattr(
-        query_runner,
+        unified,
         "build_unified_base_page",
         lambda params, page, page_size: (_ for _ in ()).throw(RuntimeError("timeout")),
     )
@@ -354,8 +346,8 @@ def test_build_unified_snapshot_uses_full_range_intersection(monkeypatch):
         calls["incremental"] += 1
         return "wrong-snapshot-id", [], 0
 
-    monkeypatch.setattr(query_runner, "build_unified_snapshot_exact", fake_exact)
-    monkeypatch.setattr(query_runner, "build_unified_snapshot_incremental", fake_incremental)
+    monkeypatch.setattr(unified, "build_unified_snapshot_exact", fake_exact)
+    monkeypatch.setattr(unified, "build_unified_snapshot_incremental", fake_incremental)
 
     result = query_runner.build_unified_snapshot(
         {"fechaDesde": "2026-05-14", "fechaHasta": "2026-06-03"}
@@ -398,7 +390,7 @@ def test_get_common_barcodes_strict_intersection(monkeypatch):
 
         return ["CodigoBarra"], []
 
-    monkeypatch.setattr(query_runner, "execute_query", fake_execute_query)
+    monkeypatch.setattr(unified, "execute_query", fake_execute_query)
 
     try:
         result = query_runner.get_common_barcodes(parameters)
