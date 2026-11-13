@@ -7,7 +7,7 @@ Object.defineProperty(globalThis, "window", { value: dom.window, configurable: t
 Object.defineProperty(globalThis, "document", { value: dom.window.document, configurable: true });
 Object.defineProperty(globalThis, "navigator", { value: dom.window.navigator, configurable: true });
 
-import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, waitFor, within } from "@testing-library/react";
 import * as api from "./api";
 import { App } from "./App";
 
@@ -67,7 +67,7 @@ describe("App existencia por tienda", () => {
         .mockResolvedValueOnce(salesDetail(50, "BODEGA CREACION: 50") as any)
         .mockResolvedValueOnce(salesDetail(57, "BODEGA CREACION: 50 | SUC CALIDOSO LIBERTAD: 7") as any);
 
-      const { findByRole, findByText, findByLabelText, getByText } = render(<App />);
+      const { findByRole, findByText, findByLabelText, getByText, queryByRole } = render(<App />);
       (await findByRole("button", { name: /ejecutar/i })).click();
       await findByText("REF-1");
 
@@ -77,7 +77,14 @@ describe("App existencia por tienda", () => {
       expect(runQueryMock.mock.calls[1][1]).not.toHaveProperty("tiendaExistencia");
       // La columna con los nombres aparece en la tabla.
       await findByText("Existencia por tienda");
-      await findByText("BODEGA CREACION: 50 | SUC CALIDOSO LIBERTAD: 7");
+      // La celda muestra un resumen y "Ver" abre el desglose separado en bodegas y tiendas.
+      fireEvent.click(await findByRole("button", { name: "Ver 2 lugares" }));
+      const dialog = await findByRole("dialog");
+      expect(within(dialog).getByText("BODEGA CREACION")).toBeTruthy();
+      expect(within(dialog).getByText("SUC CALIDOSO LIBERTAD")).toBeTruthy();
+      expect(within(dialog).getByText("50")).toBeTruthy();
+      fireEvent.click(within(dialog).getByRole("button", { name: "Cerrar" }));
+      await waitFor(() => expect(queryByRole("dialog")).toBeNull());
 
       // Grupos separados y casillas con el nombre de cada tienda/bodega.
       expect(getByText("Tiendas")).toBeTruthy();

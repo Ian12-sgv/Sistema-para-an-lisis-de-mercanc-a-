@@ -1348,3 +1348,125 @@ tbody tr:hover {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+
+/* Existencia por tienda: resumen en la celda y desglose en ventana. */
+.store-existence-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.store-existence-cell button,
+.store-dialog header button {
+  min-height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-card);
+  color: var(--brand-accent);
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.store-existence-cell button:hover,
+.store-dialog header button:hover {
+  border-color: var(--brand-accent);
+  background: var(--muted);
+}
+
+.store-existence-cell span,
+.store-existence-empty {
+  color: var(--muted-foreground);
+}
+
+.store-existence-cell strong {
+  color: var(--foreground);
+}
+
+.store-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: oklch(0.15 0.02 250 / 0.55);
+  padding: 16px;
+}
+
+.store-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(620px, 100%);
+  max-height: min(80vh, 760px);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-card);
+  color: var(--foreground);
+  box-shadow: 0 24px 60px oklch(0.15 0.03 250 / 0.4);
+}
+
+.store-dialog header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--border);
+  padding: 16px 18px 12px;
+}
+
+.store-dialog h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.store-dialog header p {
+  margin: 4px 0 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.store-dialog-total {
+  border-bottom: 1px solid var(--border);
+  padding: 10px 18px;
+  font-size: 13px;
+}
+
+.store-dialog-body {
+  display: grid;
+  gap: 16px;
+  overflow-y: auto;
+  padding: 12px 18px 18px;
+}
+
+.store-dialog h4 {
+  display: flex;
+  justify-content: space-between;
+  margin: 0 0 6px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.store-dialog h4 span {
+  color: var(--muted-foreground);
+  text-transform: none;
+}
+
+.store-dialog table {
+  width: 100%;
+}
+
+.store-dialog th,
+.store-dialog td {
+  padding: 7px 10px;
+}
+
+.store-dialog th {
+  position: static;
+}
+
+.store-dialog .numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

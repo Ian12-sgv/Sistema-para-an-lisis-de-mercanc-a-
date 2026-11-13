@@ -337,6 +337,8 @@ export function App() {
   const [unifiedDetailsByBarcode, setUnifiedDetailsByBarcode] = useState<Record<string, Record<string, unknown>>>({});
   const [unifiedDetailMessage, setUnifiedDetailMessage] = useState<string | null>(null);
   const [tiendas, setTiendas] = useState<Tienda[]>([]);
+  // Fila cuya "Existencia por tienda" se esta viendo en la ventana de detalle.
+  const [storeExistenceRow, setStoreExistenceRow] = useState<Record<string, unknown> | null>(null);
   // "Solo con ventas": oculta las filas de la unificada sin unidades vendidas.
   const [onlyWithSales, setOnlyWithSales] = useState(false);
   // Tiendas/bodegas marcadas para "Existencia actual"; ninguna = total de todas.
@@ -1287,7 +1289,13 @@ export function App() {
                     {visibleRows.map((row, index) => (
                       <tr key={(page - 1) * PAGE_SIZE + index}>
                         {visibleColumns.map((column) => (
-                          <td key={column}>{formatCellValue(column, row[column], row)}</td>
+                          <td key={column}>
+                            {column === STORE_EXISTENCE_COLUMN ? (
+                              <StoreExistenceCell value={row[column]} onOpen={() => setStoreExistenceRow(row)} />
+                            ) : (
+                              formatCellValue(column, row[column], row)
+                            )}
+                          </td>
                         ))}
                       </tr>
                     ))}
@@ -1326,7 +1334,145 @@ export function App() {
           ) : null}
         </div> : null}
       </section>
+      {storeExistenceRow ? (
+        <StoreExistenceDialog row={storeExistenceRow} tiendas={tiendas} onClose={() => setStoreExistenceRow(null)} />
+      ) : null}
     </main>
+  );
+}
+
+const STORE_EXISTENCE_COLUMN = "Existencia por tienda";
+
+export interface StoreExistenceEntry {
+  name: string;
+  quantity: number;
+}
+
+/** Convierte "BODEGA MATEO: 131 | SUC ZARAZA: 6" en una lista ordenada de mayor a menor existencia. */
+export function parseStoreExistence(value: unknown): StoreExistenceEntry[] {
+  return String(value ?? "")
+    .split("|")
+    .map((part) => {
+      const separator = part.lastIndexOf(":");
+      if (separator < 0) return null;
+      const name = part.slice(0, separator).trim();
+      const quantity = Number(part.slice(separator + 1).trim().replace(",", "."));
+      return name && Number.isFinite(quantity) ? { name, quantity } : null;
+    })
+    .filter((entry): entry is StoreExistenceEntry => entry !== null)
+    .sort((a, b) => b.quantity - a.quantity || a.name.localeCompare(b.name));
+}
+
+function formatQuantity(value: number) {
+  return Number.isInteger(value) ? String(value) : String(Math.round(value * 100) / 100);
+}
+
+function StoreExistenceCell({ value, onOpen }: { value: unknown; onOpen: () => void }) {
+  if (value === null || value === undefined || String(value).trim() === "") return null;
+
+  const entries = parseStoreExistence(value);
+  if (entries.length === 0) return <span className="store-existence-empty">Sin existencia</span>;
+
+  const total = entries.reduce((sum, entry) => sum + entry.quantity, 0);
+  const [top] = entries;
+
+  return (
+    <div className="store-existence-cell">
+      <button type="button" onClick={onOpen}>
+        Ver {entries.length} {entries.length === 1 ? "lugar" : "lugares"}
+      </button>
+      <span>
+        <strong>{formatQuantity(total)}</strong> u. · mayor: {top.name} ({formatQuantity(top.quantity)})
+      </span>
+    </div>
+  );
+}
+
+function StoreExistenceDialog({
+  row,
+  tiendas,
+  onClose,
+}: {
+  row: Record<string, unknown>;
+  tiendas: Tienda[];
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [onClose]);
+
+  const entries = parseStoreExistence(row[STORE_EXISTENCE_COLUMN]);
+  const total = entries.reduce((sum, entry) => sum + entry.quantity, 0);
+  const typeByName = new Map(tiendas.map((tienda) => [tienda.nombre.trim().toUpperCase(), tienda.tipo]));
+  const typeOf = (name: string) =>
+    typeByName.get(name.toUpperCase()) ?? (name.toUpperCase().startsWith("BODEGA") ? "Bodega" : "Tienda");
+  const groups = [
+    { label: "Bodegas", items: entries.filter((entry) => typeOf(entry.name) === "Bodega") },
+    { label: "Tiendas", items: entries.filter((entry) => typeOf(entry.name) !== "Bodega") },
+  ].filter((group) => group.items.length > 0);
+  const barcode = String(row["Codigo Barra"] ?? row.CodigoBarra ?? "");
+  const description = String(row["Descripcion"] ?? "");
+
+  return (
+    <div
+      className="store-dialog-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div className="store-dialog" role="dialog" aria-modal="true" aria-labelledby="store-dialog-title">
+        <header>
+          <div>
+            <h3 id="store-dialog-title">Existencia por tienda</h3>
+            <p>
+              {barcode}
+              {description ? ` · ${description}` : ""}
+            </p>
+          </div>
+          <button type="button" onClick={onClose}>
+            Cerrar
+          </button>
+        </header>
+        <div className="store-dialog-total">
+          Total: <strong>{formatQuantity(total)}</strong> unidades en {entries.length}{" "}
+          {entries.length === 1 ? "lugar" : "lugares"}
+        </div>
+        <div className="store-dialog-body">
+          {groups.map((group) => {
+            const subtotal = group.items.reduce((sum, entry) => sum + entry.quantity, 0);
+            return (
+              <section key={group.label}>
+                <h4>
+                  {group.label} <span>{formatQuantity(subtotal)} u.</span>
+                </h4>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Nombre</th>
+                      <th className="numeric">Existencia</th>
+                      <th className="numeric">% del total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {group.items.map((entry) => (
+                      <tr key={entry.name}>
+                        <td>{entry.name}</td>
+                        <td className="numeric">{formatQuantity(entry.quantity)}</td>
+                        <td className="numeric">{total ? `${Math.round((entry.quantity / total) * 1000) / 10}%` : ""}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </section>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }
 

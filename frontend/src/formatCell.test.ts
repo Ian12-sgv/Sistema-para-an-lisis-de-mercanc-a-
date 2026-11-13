@@ -24,3 +24,20 @@ describe("formatCellValue", () => {
     expect(formatCellValue("Codigo Barra", "3300000003757")).toBe("3300000003757");
   });
 });
+
+describe("parseStoreExistence", () => {
+  it("separa nombre y cantidad y ordena de mayor a menor", async () => {
+    const { parseStoreExistence } = await import("./App");
+    expect(parseStoreExistence("SUC ZARAZA: 6 | BODEGA MATEO: 131 | SUC. PDB MACHIQUES: 5")).toEqual([
+      { name: "BODEGA MATEO", quantity: 131 },
+      { name: "SUC ZARAZA", quantity: 6 },
+      { name: "SUC. PDB MACHIQUES", quantity: 5 },
+    ]);
+  });
+
+  it("devuelve lista vacia sin datos", async () => {
+    const { parseStoreExistence } = await import("./App");
+    expect(parseStoreExistence("")).toEqual([]);
+    expect(parseStoreExistence(null)).toEqual([]);
+  });
+});
