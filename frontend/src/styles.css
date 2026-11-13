@@ -262,7 +262,8 @@ input:focus {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .workspace-header {
@@ -349,8 +350,8 @@ input:focus {
 }
 
 .query-view {
-  margin-top: 18px;
-  margin-bottom: 16px;
+  margin-top: 12px;
+  margin-bottom: 12px;
 }
 
 .dashboard-view {
@@ -491,15 +492,15 @@ input:focus {
 }
 
 .query-detail dl {
-  display: grid;
-  gap: 10px;
-  margin: 0 0 18px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 28px;
+  margin: 0 0 12px;
 }
 
 .query-detail dl div {
-  display: grid;
-  grid-template-columns: 120px 1fr;
-  gap: 12px;
+  display: flex;
+  gap: 8px;
 }
 
 .query-detail dt {
@@ -596,10 +597,11 @@ input:focus {
 
 .result-surface {
   display: flex;
-  flex: 1;
+  /* Ocupa todo el alto libre y nunca baja de 520px: si la pantalla es baja, se desplaza la pagina, no se aplasta la tabla. */
+  flex: 1 1 0;
   flex-direction: column;
-  min-height: 0;
-  max-height: 100%;
+  min-height: 520px;
+  margin-bottom: 16px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface-card);
@@ -625,15 +627,28 @@ input:focus {
 .table-filters {
   display: grid;
   grid-template-columns: repeat(5, minmax(142px, 1fr));
-  gap: 14px;
+  gap: 10px 14px;
   border-bottom: 1px solid var(--border);
   background: var(--surface-card);
-  padding: 16px 18px;
+  padding: 12px 18px;
+}
+
+/* Opciones de la unificada en una sola franja horizontal (se parte en varias lineas solo si no caben). */
+.table-filter-toolbar {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 22px;
+}
+
+.table-filter-toolbar .table-filter-options {
+  grid-column: auto;
 }
 
 .table-filter-field {
   display: grid;
-  gap: 7px;
+  gap: 5px;
 }
 
 .table-filter-field span,
@@ -660,13 +675,13 @@ input:focus {
 .table-filter-options {
   display: grid;
   grid-column: 1 / -1;
-  gap: 8px;
+  gap: 5px;
 }
 
 .table-filter-options > div {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
 }
 
 .table-filter-options label {
@@ -1272,6 +1287,8 @@ tbody tr:hover {
 }
 
 .store-filter details {
+  position: relative;
+  min-width: 240px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-card);
@@ -1289,14 +1306,21 @@ tbody tr:hover {
 }
 
 .store-filter-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
   display: grid;
   gap: 10px;
-  max-height: 320px;
+  width: min(640px, 80vw);
+  max-height: 360px;
   overflow-y: auto;
   margin: 0;
-  border: 0;
-  border-top: 1px solid var(--border);
-  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-card);
+  padding: 12px;
+  box-shadow: 0 16px 40px oklch(0.2 0.03 250 / 0.35);
 }
 
 .store-filter-list > button {

@@ -789,6 +789,18 @@ export function App() {
     };
   }, [isUnifiedQuery, tiendas.length]);
 
+  // El selector "Existencia en" flota sobre la tabla: se cierra al hacer clic fuera de él.
+  useEffect(() => {
+    const closeStoreFilter = (event: MouseEvent) => {
+      document.querySelectorAll<HTMLDetailsElement>(".store-filter details[open]").forEach((details) => {
+        if (!details.contains(event.target as Node)) details.open = false;
+      });
+    };
+
+    document.addEventListener("mousedown", closeStoreFilter);
+    return () => document.removeEventListener("mousedown", closeStoreFilter);
+  }, []);
+
   useEffect(() => {
     document.documentElement.dataset.theme = isDarkTheme ? "dark" : "light";
     window.localStorage.setItem(THEME_STORAGE_KEY, isDarkTheme ? "dark" : "light");
@@ -1117,6 +1129,7 @@ export function App() {
                   </label>
                 ))}
                 {isUnifiedQuery ? (
+                  <div className="table-filter-toolbar">
                   <div className="table-filter-options">
                     <span>Cargar detalle</span>
                     <div>
@@ -1143,8 +1156,6 @@ export function App() {
                       </button>
                     </div>
                   </div>
-                ) : null}
-                {isUnifiedQuery ? (
                   <div className="table-filter-options store-filter">
                     <span>Existencia en</span>
                     <details>
@@ -1188,8 +1199,6 @@ export function App() {
                       </fieldset>
                     </details>
                   </div>
-                ) : null}
-                {isUnifiedQuery ? (
                   <div className="table-filter-options">
                     <span>Tipo de ajuste</span>
                     <div>
@@ -1219,8 +1228,6 @@ export function App() {
                       </label>
                     </div>
                   </div>
-                ) : null}
-                {isUnifiedQuery ? (
                   <div className="table-filter-options">
                     <span>Ventas</span>
                     <div>
@@ -1234,6 +1241,7 @@ export function App() {
                         Solo con ventas
                       </label>
                     </div>
+                  </div>
                   </div>
                 ) : null}
               </div>
