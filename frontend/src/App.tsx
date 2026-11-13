@@ -104,18 +104,34 @@ interface SavedQueryState {
   result: QueryResult;
 }
 
-const PERCENT_COLUMNS = new Set(["Vendido"]);
+function toPercentNumber(value: unknown) {
+  if (value === null || value === undefined || String(value).trim() === "") return null;
+  const numberValue = Number(String(value).replace(",", "."));
+  return Number.isFinite(numberValue) ? numberValue : null;
+}
 
-/** Texto de una celda para la tabla y las descargas; "Vendido" se muestra como porcentaje (31.39%). */
-export function formatCellValue(column: string, value: unknown) {
-  if (value === null || value === undefined) return "";
-  if (value instanceof Date) return value.toISOString();
+function formatPercent(value: number) {
+  return `${Math.round(value * 100) / 100}%`;
+}
 
-  if (PERCENT_COLUMNS.has(column) && String(value).trim() !== "") {
-    const numberValue = Number(String(value).replace(",", "."));
-    if (Number.isFinite(numberValue)) return `${Math.round(numberValue * 100) / 100}%`;
+/**
+ * Texto de una celda para la tabla y las descargas.
+ * "Vendido" y "Quedan" se muestran como porcentaje de lo comprado: Quedan % = 100 - Vendido %
+ * (Quedan en unidades = comprado - vendido). Vacias cuando no hay ventas.
+ */
+export function formatCellValue(column: string, value: unknown, row?: Record<string, unknown>) {
+  if (column === "Vendido") {
+    const sold = toPercentNumber(value);
+    return sold === null ? "" : formatPercent(sold);
   }
 
+  if (column === "Quedan" && row) {
+    const sold = toPercentNumber(row["Vendido"]);
+    return sold === null ? "" : formatPercent(100 - sold);
+  }
+
+  if (value === null || value === undefined) return "";
+  if (value instanceof Date) return value.toISOString();
   return String(value);
 }
 
@@ -175,7 +191,7 @@ function downloadCsv(queryName: string, columns: string[], rows: Record<string, 
   const content = [
     "sep=;",
     columns.map((column) => escapeCsvValue(column, column)).join(";"),
-    ...rows.map((row) => columns.map((column) => escapeCsvValue(column, formatCellValue(column, row[column]))).join(";")),
+    ...rows.map((row) => columns.map((column) => escapeCsvValue(column, formatCellValue(column, row[column], row))).join(";")),
   ].join("\r\n");
 
   downloadBlob(`\uFEFF${content}`, buildExportFileName(queryName, "csv"), "text/csv;charset=utf-8;");
@@ -190,7 +206,7 @@ function downloadExcel(queryName: string, columns: string[], rows: Record<string
       .replace(/"/g, "&quot;");
   const tableHead = columns.map((column) => `<th class="text-cell">${escapeHtml(column)}</th>`).join("");
   const tableRows = rows
-    .map((row) => `<tr>${columns.map((column) => `<td class="text-cell">${escapeHtml(formatCellValue(column, row[column]))}</td>`).join("")}</tr>`)
+    .map((row) => `<tr>${columns.map((column) => `<td class="text-cell">${escapeHtml(formatCellValue(column, row[column], row))}</td>`).join("")}</tr>`)
     .join("");
   const content = `
     <html>
@@ -1271,7 +1287,7 @@ export function App() {
                     {visibleRows.map((row, index) => (
                       <tr key={(page - 1) * PAGE_SIZE + index}>
                         {visibleColumns.map((column) => (
-                          <td key={column}>{formatCellValue(column, row[column])}</td>
+                          <td key={column}>{formatCellValue(column, row[column], row)}</td>
                         ))}
                       </tr>
                     ))}
