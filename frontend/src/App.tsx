@@ -104,10 +104,23 @@ interface SavedQueryState {
   result: QueryResult;
 }
 
-function formatExportValue(value: unknown) {
+const PERCENT_COLUMNS = new Set(["Vendido"]);
+
+/** Texto de una celda para la tabla y las descargas; "Vendido" se muestra como porcentaje (31.39%). */
+export function formatCellValue(column: string, value: unknown) {
   if (value === null || value === undefined) return "";
   if (value instanceof Date) return value.toISOString();
+
+  if (PERCENT_COLUMNS.has(column) && String(value).trim() !== "") {
+    const numberValue = Number(String(value).replace(",", "."));
+    if (Number.isFinite(numberValue)) return `${Math.round(numberValue * 100) / 100}%`;
+  }
+
   return String(value);
+}
+
+function formatExportValue(value: unknown) {
+  return formatCellValue("", value);
 }
 
 function buildExportFileName(queryName: string, extension: "csv" | "xls") {
@@ -162,7 +175,7 @@ function downloadCsv(queryName: string, columns: string[], rows: Record<string, 
   const content = [
     "sep=;",
     columns.map((column) => escapeCsvValue(column, column)).join(";"),
-    ...rows.map((row) => columns.map((column) => escapeCsvValue(column, row[column])).join(";")),
+    ...rows.map((row) => columns.map((column) => escapeCsvValue(column, formatCellValue(column, row[column]))).join(";")),
   ].join("\r\n");
 
   downloadBlob(`\uFEFF${content}`, buildExportFileName(queryName, "csv"), "text/csv;charset=utf-8;");
@@ -177,7 +190,7 @@ function downloadExcel(queryName: string, columns: string[], rows: Record<string
       .replace(/"/g, "&quot;");
   const tableHead = columns.map((column) => `<th class="text-cell">${escapeHtml(column)}</th>`).join("");
   const tableRows = rows
-    .map((row) => `<tr>${columns.map((column) => `<td class="text-cell">${escapeHtml(row[column])}</td>`).join("")}</tr>`)
+    .map((row) => `<tr>${columns.map((column) => `<td class="text-cell">${escapeHtml(formatCellValue(column, row[column]))}</td>`).join("")}</tr>`)
     .join("");
   const content = `
     <html>
@@ -1258,7 +1271,7 @@ export function App() {
                     {visibleRows.map((row, index) => (
                       <tr key={(page - 1) * PAGE_SIZE + index}>
                         {visibleColumns.map((column) => (
-                          <td key={column}>{String(row[column] ?? "")}</td>
+                          <td key={column}>{formatCellValue(column, row[column])}</td>
                         ))}
                       </tr>
                     ))}
