@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes.health import router as health_router
 from app.api.routes.queries import router as queries_router
+from app.api.routes.tiendas import router as tiendas_router
 from app.core.config import settings
 
 app = FastAPI(
@@ -21,4 +22,5 @@ app.add_middleware(
 
 app.include_router(health_router)
 app.include_router(queries_router, prefix="/api")
+app.include_router(tiendas_router, prefix="/api")
 

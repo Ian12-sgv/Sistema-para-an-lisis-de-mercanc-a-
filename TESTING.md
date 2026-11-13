@@ -19,7 +19,7 @@ backend\.venv\Scripts\python.exe -m pytest backend\tests
 Cobertura principal:
 
 - `build_ordered_parameters` para `ventas`, `kardex` y `transferencias_tiendas`.
-- Interseccion estricta de codigos comunes para `consulta_unificada`.
+- Regla de `consulta_unificada`: compras, ajustes de kardex, ventas y transferencias obligatorios, filtrados en ese orden.
 - Persistencia de codigos comunes en cache/snapshot.
 - Filtros globales sobre snapshots Parquet con DuckDB.
 - Paginacion filtrada.
@@ -28,7 +28,7 @@ Cobertura principal:
 Resultado esperado actual:
 
 ```text
-28 passed
+41 passed
 ```
 
 ## Frontend
@@ -61,7 +61,7 @@ Cobertura principal:
 Resultado esperado actual:
 
 ```text
-14 passed
+18 passed
 ```
 
 ## Nota operativa

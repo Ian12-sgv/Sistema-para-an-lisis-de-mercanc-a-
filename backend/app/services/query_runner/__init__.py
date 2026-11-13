@@ -25,7 +25,7 @@ from app.services.query_runner.dispatcher import run_query, unify_queries
 from app.services.query_runner.snapshots import get_query_snapshot_status
 from app.services.query_runner.sql import (
     build_transferencias_page_sql,
-    build_unified_base_detail_sql,
+    build_unified_full_sql,
 )
 from app.services.query_runner.unified import (
     build_unified_first_page,
@@ -39,7 +39,7 @@ __all__ = [
     "build_dashboard_summary",
     "build_ordered_parameters",
     "build_transferencias_page_sql",
-    "build_unified_base_detail_sql",
+    "build_unified_full_sql",
     "build_unified_first_page",
     "build_unified_snapshot",
     "get_cache_parameters",

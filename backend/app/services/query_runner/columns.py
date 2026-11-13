@@ -21,6 +21,8 @@ UNIFIED_COLUMNS = [
     "Correcciones de compra",
     "Cantidad de compra",
     "Suma Unidades Compras",
+    "Despachar A",
+    "Numero Contenedor",
     "Existencia actual",
     "Suma Existencia",
     "Porcentaje de existencia%",
@@ -69,6 +71,8 @@ UNIFIED_COLUMNS = [
     "Fecha carga transferencia",
     "Numero transferencia",
     "Tienda kardex transferencia",
+    "Vendido",
+    "Quedan",
 ]
 UNIFIED_BASE_COLUMNS = [
     "Codigo Barra",
@@ -90,6 +94,8 @@ UNIFIED_BASE_COLUMNS = [
     "Correcciones de compra",
     "Cantidad de compra",
     "Suma Unidades Compras",
+    "Despachar A",
+    "Numero Contenedor",
 ]
 TRANSFER_COLUMNS = [
     "MATRIZ",
@@ -111,6 +117,7 @@ SALES_DETAIL_COLUMNS = [
     "Codigo Barra",
     "Existencia actual",
     "Suma Existencia",
+    "Existencia por tienda",
     "Unidades vendidas",
     "Suma Cantidades ventas",
     "NumeroFactura",
@@ -122,6 +129,8 @@ SALES_DETAIL_COLUMNS = [
     "PrecioMayor",
     "PrecioPromocion",
     "Utilidad por ventas",
+    "Vendido",
+    "Quedan",
 ]
 KARDEX_DETAIL_COLUMNS = [
     "Codigo Barra",

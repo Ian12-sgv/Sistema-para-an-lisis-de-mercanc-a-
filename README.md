@@ -50,6 +50,8 @@ Endpoints iniciales:
 - `GET /api/queries`
 - `POST /api/queries/run`
 - `POST /api/queries/unify`
+- `POST /api/queries/status`
+- `GET /api/tiendas`
 
 ## Frontend
 
@@ -73,18 +75,28 @@ El backend quedara disponible en `https://apirotacion.apipalacio.com`.
 
 ### Backend y Caddy
 
-1. Ejecutar FastAPI en el servidor, escuchando solamente en `127.0.0.1:8000`.
+1. Ejecutar FastAPI en el servidor, escuchando solamente en `127.0.0.1:5202`.
 2. Copiar [`deploy/Caddyfile`](deploy/Caddyfile) a la configuracion de Caddy.
 3. Permitir los puertos TCP `80` y `443` en el firewall.
 4. Recargar Caddy para que obtenga y renueve el certificado HTTPS.
-5. Crear el `.env` del servidor tomando como referencia
-   [`deploy/.env.production.example`](deploy/.env.production.example).
+5. Crear el `.env` del servidor tomando como referencia [`.env.example`](.env.example).
 
-Comando recomendado para FastAPI:
+En el servidor el backend vive en `C:\Users\Administrator\Documents\servicios IAN\rotacion`
+(con `.env`, `backend\.venv`, `backend\app`, `database` y `.cache`) y lo arranca el paso
+`[8/12]` del `.bat` de servicios IAN con:
 
 ```powershell
-backend\.venv\Scripts\python.exe -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
+backend\.venv\Scripts\python.exe -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 5202
 ```
+
+#### Actualizar el backend en el servidor
+
+1. Respaldar `backend\app` y `database` (renombrarlos). **No** tocar `.env`, `backend\.venv` ni `.cache`.
+2. Copiar `backend\app` completo (sin mezclar con el viejo) y `database` desde este repositorio.
+3. Ejecutar [`deploy/reiniciar_rotacion.bat`](deploy/reiniciar_rotacion.bat): reinicia solo Rotacion
+   (libera el puerto 5202, porque el `python.exe` del `.venv` deja un proceso hijo que el `.pid` no cubre)
+   y comprueba `/health` y `/api/tiendas`.
+4. Comprobar `https://apirotacion.apipalacio.com/health`.
 
 ### Backend con Docker
 
@@ -92,7 +104,7 @@ Imagen publicada: `sistemaspdb/rotacion` (etiquetas por fecha `AAAA.MM.DD` y `la
 Incluye ODBC Driver 17; la configuracion se pasa por variables de entorno, nunca dentro de la imagen.
 
 ```powershell
-docker run -d --name unificador-api -p 127.0.0.1:8000:8000 --env-file .env -v unificador-cache:/app/.cache --restart unless-stopped sistemaspdb/rotacion:latest
+docker run -d --name unificador-api -p 127.0.0.1:5202:8000 --env-file .env -v unificador-cache:/app/.cache --restart unless-stopped sistemaspdb/rotacion:latest
 ```
 
 El volumen `unificador-cache` conserva los snapshots entre reinicios. Para construirla localmente: `docker build -t sistemaspdb/rotacion .`

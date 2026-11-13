@@ -53,7 +53,7 @@ QUERY_CATALOG: dict[str, QueryDefinition] = {
     "consulta_unificada": QueryDefinition(
         id="consulta_unificada",
         name="Consulta unificada",
-        description="Codigos de barra presentes en consulta base, kardex y transferencias. Ventas se consulta por articulo.",
+        description="Codigos comprados en el rango que tambien tuvieron ajustes de kardex, ventas y transferencias.",
         sql_file="",
         orderBy="CodigoBarra",
         requires_connection=True,

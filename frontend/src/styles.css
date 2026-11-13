@@ -543,7 +543,7 @@ input:focus {
 }
 
 :root[data-theme="dark"] .parameter-field input,
-:root[data-theme="dark"] .table-filter-field input {
+:root[data-theme="dark"] .table-filter-field :is(input, select) {
   background: oklch(0.29 0.028 250);
 }
 
@@ -643,7 +643,7 @@ input:focus {
   font-weight: 600;
 }
 
-.table-filter-field input {
+.table-filter-field :is(input, select) {
   height: 36px;
   min-width: 0;
   border: 1px solid var(--input);
@@ -653,7 +653,7 @@ input:focus {
   color: var(--foreground);
 }
 
-.table-filter-field input:focus {
+.table-filter-field :is(input, select):focus {
   background: var(--surface-card);
 }
 
@@ -1148,7 +1148,7 @@ tbody tr:hover {
   }
 
   .parameter-field input,
-  .table-filter-field input {
+  .table-filter-field :is(input, select) {
     height: 42px;
   }
 
@@ -1259,4 +1259,68 @@ tbody tr:hover {
     grid-column: 1 / -1;
     grid-row: 1;
   }
+}
+
+/* Filtro "Existencia en": varias tiendas y bodegas a la vez */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.store-filter details {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-card);
+}
+
+.store-filter summary {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--foreground);
+  cursor: pointer;
+}
+
+.store-filter-list {
+  display: grid;
+  gap: 10px;
+  max-height: 320px;
+  overflow-y: auto;
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  padding: 10px 12px;
+}
+
+.store-filter-list > button {
+  justify-self: start;
+}
+
+.store-filter-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.store-filter-group-header {
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.store-filter-group strong {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }

@@ -1,4 +1,4 @@
-import type { DashboardSummary, QueryDefinition, QueryResult, SnapshotStatus, UnifiedQueryResult } from "./types";
+import type { DashboardSummary, QueryDefinition, QueryResult, SnapshotStatus, Tienda, UnifiedQueryResult } from "./types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000";
 
@@ -50,6 +50,11 @@ export function fetchSnapshotStatus(queryId: string, parameters: Record<string, 
     method: "POST",
     body: JSON.stringify({ queryId, parameters }),
   });
+}
+
+/** Tiendas y bodegas activas para el filtro "Existencia en". */
+export function fetchTiendas() {
+  return request<Tienda[]>("/api/tiendas");
 }
 
 export function unifyQueries(queryIds: string[], parameters: Record<string, string> = {}) {

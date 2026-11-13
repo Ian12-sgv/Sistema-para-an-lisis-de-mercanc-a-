@@ -29,7 +29,7 @@ def test_build_unified_first_page_calls_execute_query_with_expected_parameter_co
     def fake_execute_query(sql, params):
         calls.append({"sql": sql, "params": params})
 
-        if "CommonCodes" in sql:
+        if is_codes_sql(sql):
             return ["CodigoBarra"], [{"CodigoBarra": "111"}, {"CodigoBarra": "222"}]
 
         return ["Codigo Barra"], [{"Codigo Barra": "111"}, {"Codigo Barra": "222"}]
@@ -45,13 +45,13 @@ def test_build_unified_first_page_calls_execute_query_with_expected_parameter_co
     code_call = calls[0]
     detail_call = calls[1]
 
-    assert "WITH CommonCodes AS" in code_call["sql"]
+    assert "#u_transfer" in code_call["sql"]
     assert "OFFSET" not in code_call["sql"]
     assert "WHERE CAST(CodigoBarra AS VARCHAR(50)) IN (?, ?)" in detail_call["sql"]
 
-    assert len(code_call["params"]) == 8
+    assert len(code_call["params"]) == 2
     parsed_code_dates = [p.isoformat() if hasattr(p, "isoformat") else str(p) for p in code_call["params"]]
-    assert parsed_code_dates == ["2026-05-14", "2026-05-21"] * 4
+    assert parsed_code_dates == ["2026-05-14", "2026-05-21"]
 
     detail_params = detail_call["params"]
     parsed_detail_dates = [p.isoformat() if hasattr(p, "isoformat") else str(p) for p in detail_params[:2]]
@@ -70,7 +70,7 @@ def test_unified_pages_reuse_common_codes_instead_of_requerying(monkeypatch):
     all_codes = [f"{i:03d}" for i in range(5)]
 
     def fake_execute_query(sql, params):
-        if "CommonCodes" in sql:
+        if is_codes_sql(sql):
             calls["codes"] += 1
             return ["CodigoBarra"], [{"CodigoBarra": code} for code in all_codes]
 
@@ -96,7 +96,7 @@ def test_unified_page_past_the_end_returns_empty(monkeypatch):
     monkeypatch.setattr(
         unified,
         "execute_query",
-        lambda sql, params: (["CodigoBarra"], [{"CodigoBarra": "111"}]) if "CommonCodes" in sql else (_ for _ in ()).throw(AssertionError("no detail query expected")),
+        lambda sql, params: (["CodigoBarra"], [{"CodigoBarra": "111"}]) if is_codes_sql(sql) else (_ for _ in ()).throw(AssertionError("no detail query expected")),
     )
     clear_query_cache()
 
@@ -111,6 +111,11 @@ def test_unified_page_past_the_end_returns_empty(monkeypatch):
 def clear_query_cache():
     with query_runner.query_cache._lock:
         query_runner.query_cache._items.clear()
+
+
+def is_codes_sql(sql: str) -> bool:
+    """La consulta de codigos termina leyendo #u_transfer y no trae la consulta base de compras."""
+    return "FROM #u_transfer" in sql and "AS base_query" not in sql
 
 
 def test_run_unified_query_base_page_failure_is_not_hidden(monkeypatch):
@@ -128,10 +133,67 @@ def test_run_unified_query_base_page_failure_is_not_hidden(monkeypatch):
         raise AssertionError("run_unified_query should not hide base page failures")
 
 
-def test_build_unified_base_detail_sql_top_and_no_in_clause():
-    base_sql = "SELECT CodigoBarra FROM sometable WHERE 1=1"
-    sql = query_runner.build_unified_base_detail_sql(base_sql, None)
+def test_unified_full_sql_requires_kardex_sales_and_transfers():
+    base_sql = "SELECT CodigoBarra FROM sometable WHERE Fecha >= ? AND Fecha < DATEADD(DAY, 1, ?)"
+    sql = query_runner.build_unified_full_sql(base_sql)
 
-    assert "TOP (?)" in sql
-    assert "IN (" not in sql
-    assert "ORDER BY CodigoBarra" in sql
+    # 2 fechas para los pasos con tablas temporales + 2 de la consulta base.
+    assert sql.count("?") == 4
+    # Ajustes de kardex, ventas y transferencias son obligatorios.
+    assert "INNER JOIN #u_kardex AS kardex_detail" in sql
+    assert "INNER JOIN #u_sales AS sales_detail" in sql
+    assert "INNER JOIN #u_transfer AS transfer_detail" in sql
+    assert "LEFT JOIN #u_kardex" not in sql
+    # Ya no hay subconsultas por fila (eran las que hacian lenta la consulta).
+    assert "CROSS APPLY" not in sql
+    assert "ORDER BY base_query.CodigoBarra" in sql
+
+
+def test_unified_codes_sql_filters_in_order_compras_kardex_ventas_transferencias():
+    from app.services.query_runner import sql as unified_sql
+
+    codes_sql = unified_sql.build_unified_common_codes_sql()
+
+    assert codes_sql.count("?") == 2
+    # Cada paso solo trabaja con los codigos que pasaron el anterior.
+    assert "INTO #u_kardex" in codes_sql
+    assert "FROM #u_compras uc" in codes_sql.split("INTO #u_kardex", 1)[1].split("INTO #u_sales", 1)[0]
+    assert "FROM #u_kardex uk" in codes_sql.split("INTO #u_sales", 1)[1].split("INTO #u_mtf", 1)[0]
+    assert "FROM #u_sales us" in codes_sql.split("INTO #u_mtf", 1)[1].split("INTO #u_kdoc", 1)[0]
+    assert codes_sql.rstrip().endswith("FROM #u_transfer\nORDER BY CodigoBarra")
+
+
+def test_unified_includes_despacho_columns_after_suma_compras():
+    from app.services.query_runner import sql as unified_sql
+    from app.services.query_runner.columns import UNIFIED_BASE_COLUMNS, UNIFIED_COLUMNS
+
+    expected = ["Suma Unidades Compras", "Despachar A", "Numero Contenedor"]
+    for columns in (UNIFIED_COLUMNS, UNIFIED_BASE_COLUMNS):
+        start = columns.index("Suma Unidades Compras")
+        assert columns[start : start + 3] == expected
+
+    base_sql = unified_sql.load_unified_base_sql()
+    assert "C.[DespacharA]" in base_sql
+    assert "C.[NumeroContenedor]" in base_sql
+
+    for detail_sql in (
+        unified_sql.build_unified_full_sql(base_sql),
+        unified_sql.build_unified_base_only_detail_sql(base_sql, 2),
+    ):
+        assert "DespacharA AS [Despachar A]" in detail_sql
+        assert "NumeroContenedor AS [Numero Contenedor]" in detail_sql
+
+
+def test_unified_full_detail_sql_qualifies_base_columns_shared_with_kardex():
+    import re
+
+    from app.services.query_runner import sql as unified_sql
+
+    detail_sql = unified_sql.build_unified_full_sql(unified_sql.load_unified_base_sql())
+    final_select = detail_sql[detail_sql.rindex("\nSELECT") :]
+    select_list = re.sub(r"\[[^\]]*\]", "[]", final_select.split("FROM (", 1)[0])
+
+    # kardex_detail tambien expone Referencia, CodigoMarca, Documento, Observacion y Cantidad:
+    # sin el prefijo base_query SQL Server falla con "nombre de columna ambiguo" (Msg 209).
+    for column in ("Referencia", "CodigoMarca", "Documento", "Observacion", "Cantidad"):
+        assert not re.search(rf"(?<![.\w\[]){column}\b(?!\])", select_list), column

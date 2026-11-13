@@ -33,6 +33,13 @@ export interface SnapshotStatus {
   building: boolean;
 }
 
+export interface Tienda {
+  codigo: string;
+  nombre: string;
+  zona: string;
+  tipo: "Tienda" | "Bodega" | "Otro";
+}
+
 export interface UnifiedQueryResult {
   results: QueryResult[];
   columns: string[];

@@ -1,16 +1,23 @@
 import { BarChart3, ChevronLeft, ChevronRight, Database, Download, FileSpreadsheet, Menu, Moon, Play, RefreshCw, Sun } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { fetchDashboardSummary, fetchQueries, fetchSnapshotStatus, runQuery } from "./api";
+import { fetchDashboardSummary, fetchQueries, fetchSnapshotStatus, fetchTiendas, runQuery } from "./api";
 import {
   buildQueryRunParameters,
   filterRowsByAdjustment,
   filterRowsForCurrentPage,
+  filterRowsWithSales,
   TABLE_FILTERS,
   type TableFilterKey,
   type UnifiedAdjustmentFilter,
 } from "./queryFilters";
-import type { DashboardSummary, QueryDefinition, QueryResult, UnifiedQueryResult } from "./types";
+import type { DashboardSummary, QueryDefinition, QueryResult, Tienda, UnifiedQueryResult } from "./types";
+
+const STORE_GROUPS = [
+  { tipo: "Tienda", label: "Tiendas" },
+  { tipo: "Bodega", label: "Bodegas" },
+  { tipo: "Otro", label: "Otras" },
+] as const;
 
 type ResultState = QueryResult | UnifiedQueryResult | null;
 const PAGE_SIZE = 100;
@@ -24,6 +31,7 @@ const THEME_STORAGE_KEY = "unificador-consultas-theme";
 const SALES_COLUMNS = [
   "Existencia actual",
   "Suma Existencia",
+  "Existencia por tienda",
   "Unidades vendidas",
   "Suma Cantidades ventas",
   "NumeroFactura",
@@ -35,6 +43,8 @@ const SALES_COLUMNS = [
   "PrecioMayor",
   "PrecioPromocion",
   "Utilidad por ventas",
+  "Vendido",
+  "Quedan",
 ] as const;
 const KARDEX_COLUMNS = [
   "Costo Inicial",
@@ -297,6 +307,11 @@ export function App() {
   const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary | null>(null);
   const [unifiedDetailsByBarcode, setUnifiedDetailsByBarcode] = useState<Record<string, Record<string, unknown>>>({});
   const [unifiedDetailMessage, setUnifiedDetailMessage] = useState<string | null>(null);
+  const [tiendas, setTiendas] = useState<Tienda[]>([]);
+  // "Solo con ventas": oculta las filas de la unificada sin unidades vendidas.
+  const [onlyWithSales, setOnlyWithSales] = useState(false);
+  // Tiendas/bodegas marcadas para "Existencia actual"; ninguna = total de todas.
+  const [tiendasExistencia, setTiendasExistencia] = useState<string[]>([]);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isDarkTheme, setIsDarkTheme] = useState(getInitialDarkTheme);
   const pageCacheRef = useRef(new Map<string, QueryResult>());
@@ -332,8 +347,9 @@ export function App() {
     });
   }, [isUnifiedQuery, pageRows, unifiedDetailsByBarcode]);
   const visibleRows = useMemo(() => {
-    return filterRowsByAdjustment(activeQueryId, mergedRows, unifiedAdjustmentFilters);
-  }, [activeQueryId, mergedRows, unifiedAdjustmentFilters]);
+    const rowsByAdjustment = filterRowsByAdjustment(activeQueryId, mergedRows, unifiedAdjustmentFilters);
+    return filterRowsWithSales(activeQueryId, rowsByAdjustment, onlyWithSales);
+  }, [activeQueryId, mergedRows, unifiedAdjustmentFilters, onlyWithSales]);
   const visibleColumns = useMemo(() => {
     if (!isUnifiedQuery) return resultColumns;
 
@@ -619,7 +635,50 @@ export function App() {
     };
   }
 
-  async function loadUnifiedDetailForFilteredRows(queryId: "kardex" | "transferencias_tiendas" | "ventas") {
+  function changeTiendasExistencia(storeCodes: string[]) {
+    setTiendasExistencia(storeCodes);
+
+    // Si la existencia ya está en pantalla, se recarga para la nueva selección.
+    const hasSalesDetail = Object.values(unifiedDetailsByBarcode).some((detail) => "Existencia actual" in detail);
+    if (hasSalesDetail) void loadUnifiedDetailForFilteredRows("ventas", storeCodes);
+  }
+
+  function changeOnlyWithSales(checked: boolean) {
+    setOnlyWithSales(checked);
+
+    // Para saber qué filas tienen ventas hace falta el detalle de ventas: se carga si aún no está.
+    const hasSalesDetail = Object.values(unifiedDetailsByBarcode).some((detail) => "Unidades vendidas" in detail);
+    if (checked && !hasSalesDetail) void loadUnifiedDetailForFilteredRows("ventas");
+  }
+
+  /** Marca (o quita, si ya estaban todas) todas las tiendas o todas las bodegas de un clic. */
+  function toggleStoreGroup(tipo: Tienda["tipo"]) {
+    const groupCodes = tiendas.filter((tienda) => tienda.tipo === tipo).map((tienda) => tienda.codigo);
+    const allSelected = groupCodes.every((code) => tiendasExistencia.includes(code));
+    const next = allSelected
+      ? tiendasExistencia.filter((code) => !groupCodes.includes(code))
+      : [...tiendasExistencia, ...groupCodes.filter((code) => !tiendasExistencia.includes(code))];
+    changeTiendasExistencia(next);
+  }
+
+  function toggleTiendaExistencia(storeCode: string, checked: boolean) {
+    const next = checked
+      ? [...tiendasExistencia, storeCode]
+      : tiendasExistencia.filter((code) => code !== storeCode);
+    changeTiendasExistencia(next);
+  }
+
+  const tiendasExistenciaLabel = useMemo(() => {
+    if (tiendasExistencia.length === 0) return "Todas las tiendas y bodegas";
+
+    const names = tiendasExistencia.map((code) => tiendas.find((tienda) => tienda.codigo === code)?.nombre ?? code);
+    return names.length <= 2 ? names.join(" + ") : `${names.length} seleccionadas`;
+  }, [tiendas, tiendasExistencia]);
+
+  async function loadUnifiedDetailForFilteredRows(
+    queryId: "kardex" | "transferencias_tiendas" | "ventas",
+    storeCodes: string[] = tiendasExistencia,
+  ) {
     const rowsWithBarcode = pageRows.filter((row) => getRowBarcode(row));
     const uniqueRowsByBarcode = new Map<string, Record<string, unknown>>();
 
@@ -649,6 +708,7 @@ export function App() {
           detalleUnificada: "1",
           codigoBarras: codigoBarras.join(","),
           baseMetrics: JSON.stringify(buildBaseMetrics(uniqueRowsByBarcode)),
+          ...(queryId === "ventas" && storeCodes.length > 0 ? { tiendaExistencia: storeCodes.join(",") } : {}),
         },
         1,
         EXPORT_PAGE_SIZE,
@@ -712,6 +772,22 @@ export function App() {
   useEffect(() => {
     void loadQueries();
   }, []);
+
+  useEffect(() => {
+    if (!isUnifiedQuery || tiendas.length > 0) return;
+
+    let cancelled = false;
+    // Si falla, el selector solo ofrece "Todas"; no bloquea la consulta.
+    fetchTiendas()
+      .then((data) => {
+        if (!cancelled) setTiendas(data);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isUnifiedQuery, tiendas.length]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = isDarkTheme ? "dark" : "light";
@@ -1069,6 +1145,51 @@ export function App() {
                   </div>
                 ) : null}
                 {isUnifiedQuery ? (
+                  <div className="table-filter-options store-filter">
+                    <span>Existencia en</span>
+                    <details>
+                      <summary>{tiendasExistenciaLabel}</summary>
+                      <fieldset className="store-filter-list" disabled={loadingUnifiedDetail !== null}>
+                        <legend className="sr-only">Tiendas y bodegas para la existencia</legend>
+                        <button
+                          type="button"
+                          onClick={() => changeTiendasExistencia([])}
+                          disabled={tiendasExistencia.length === 0}
+                        >
+                          Todas (limpiar selección)
+                        </button>
+                        {STORE_GROUPS.map((group) => {
+                          const groupStores = tiendas.filter((tienda) => tienda.tipo === group.tipo);
+                          if (groupStores.length === 0) return null;
+                          const allGroupSelected = groupStores.every((tienda) => tiendasExistencia.includes(tienda.codigo));
+
+                          return (
+                            <div className="store-filter-group" key={group.tipo}>
+                              <div className="store-filter-group-header">
+                                <strong>{group.label}</strong>
+                                <button type="button" onClick={() => toggleStoreGroup(group.tipo)}>
+                                  {allGroupSelected ? `Quitar todas las ${group.label.toLowerCase()}` : `Todas las ${group.label.toLowerCase()}`}
+                                </button>
+                              </div>
+                              {groupStores.map((tienda) => (
+                                <label key={tienda.codigo}>
+                                  <input
+                                    type="checkbox"
+                                    checked={tiendasExistencia.includes(tienda.codigo)}
+                                    onChange={(event) => toggleTiendaExistencia(tienda.codigo, event.target.checked)}
+                                  />
+                                  {tienda.nombre}
+                                </label>
+                              ))}
+                            </div>
+                          );
+                        })}
+                        {tiendas.length === 0 ? <p>No se pudo cargar la lista de tiendas.</p> : null}
+                      </fieldset>
+                    </details>
+                  </div>
+                ) : null}
+                {isUnifiedQuery ? (
                   <div className="table-filter-options">
                     <span>Tipo de ajuste</span>
                     <div>
@@ -1095,6 +1216,22 @@ export function App() {
                           onChange={(event) => updateUnifiedAdjustmentFilter("both", event.target.checked)}
                         />
                         Ambos
+                      </label>
+                    </div>
+                  </div>
+                ) : null}
+                {isUnifiedQuery ? (
+                  <div className="table-filter-options">
+                    <span>Ventas</span>
+                    <div>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={onlyWithSales}
+                          disabled={loadingUnifiedDetail !== null}
+                          onChange={(event) => changeOnlyWithSales(event.target.checked)}
+                        />
+                        Solo con ventas
                       </label>
                     </div>
                   </div>

@@ -10,29 +10,19 @@ from app.services.unified_snapshot import (
 )
 
 
-def test_common_barcodes_are_intersection_and_persisted(monkeypatch):
+def test_common_barcodes_use_unified_rule_query_and_are_persisted(monkeypatch):
     parameters = {"fechaDesde": "2026-05-14", "fechaHasta": "2026-05-21"}
     cache_parameters = query_runner.get_cache_parameters("consulta_unificada", parameters)
     snapshot_id = build_snapshot_id(query_runner.COMMON_BARCODES_SNAPSHOT_QUERY_ID, cache_parameters)
     reset_snapshot(snapshot_id)
-    # ensure any cached common barcodes from other tests are cleared
     with query_runner.query_cache._lock:
         query_runner.query_cache._items.clear()
 
-    # make source SQL identifiable for this test
-    monkeypatch.setattr(unified, "get_source_barcode_sql", lambda qid: f"__SRC__{qid}__")
+    calls = []
 
-    calls = {"count": 0}
-
-    def fake_execute_query(_sql, _parameters):
-        calls["count"] += 1
-        rows_by_source = {
-            1: [{"CodigoBarra": "A"}, {"CodigoBarra": "B"}, {"CodigoBarra": "C"}],
-            2: [{"CodigoBarra": "B"}, {"CodigoBarra": "C"}],
-            3: [{"CodigoBarra": "B"}, {"CodigoBarra": "D"}],
-            4: [{"CodigoBarra": "B"}, {"CodigoBarra": "E"}],
-        }
-        return ["CodigoBarra"], rows_by_source[calls["count"]]
+    def fake_execute_query(sql, params):
+        calls.append({"sql": sql, "params": params})
+        return ["CodigoBarra"], [{"CodigoBarra": "B"}, {"CodigoBarra": "D"}]
 
     monkeypatch.setattr(unified, "execute_query", fake_execute_query)
 
@@ -42,9 +32,12 @@ def test_common_barcodes_are_intersection_and_persisted(monkeypatch):
             query_runner.query_cache._items.clear()
         second = query_runner.get_common_barcodes(parameters)
 
-        assert first == ["B"]
-        assert second == ["B"]
-        assert calls["count"] == 4
+        assert first == ["B", "D"]
+        assert second == ["B", "D"]
+        # Una sola consulta (la misma regla que usan las paginas); la segunda vez sale del snapshot.
+        assert len(calls) == 1
+        assert "#u_transfer" in calls[0]["sql"]
+        assert [p.isoformat() for p in calls[0]["params"]] == ["2026-05-14", "2026-05-21"]
     finally:
         reset_snapshot(snapshot_id)
 
@@ -355,50 +348,3 @@ def test_build_unified_snapshot_uses_full_range_intersection(monkeypatch):
 
     assert result == ("snapshot-id", ["Codigo Barra"], 1)
     assert calls == {"exact": 1, "incremental": 0}
-
-
-def test_get_common_barcodes_strict_intersection(monkeypatch):
-    """
-    Simula execute_query para retornar diferentes conjuntos por fuente y valida
-    que get_common_barcodes devuelve solo la intersección estricta.
-    """
-    parameters = {"fechaDesde": "2026-05-14", "fechaHasta": "2026-05-21"}
-    cache_parameters = query_runner.get_cache_parameters("consulta_unificada", parameters)
-    snapshot_id = build_snapshot_id(query_runner.COMMON_BARCODES_SNAPSHOT_QUERY_ID, cache_parameters)
-    reset_snapshot(snapshot_id)
-
-    def fake_execute_query(sql, _parameters):
-        s = (sql or "")
-        lower_sql = s.lower()
-
-        # match either the injected __SRC__ marker or real SQL table identifiers
-        if "__src__consulta_base__" in lower_sql or "compras" in lower_sql or "movcompras" in lower_sql:
-            print("FAKE_EXEC matched consulta_base")
-            return ["CodigoBarra"], [{"CodigoBarra": "A"}, {"CodigoBarra": "B"}, {"CodigoBarra": "C"}, {"CodigoBarra": "D"}]
-
-        if "__src__ventas__" in lower_sql or "tbhecinventario" in lower_sql or "tbhecventas" in lower_sql:
-            print("FAKE_EXEC matched ventas")
-            return ["CodigoBarra"], [{"CodigoBarra": "B"}, {"CodigoBarra": "C"}, {"CodigoBarra": "D"}]
-
-        if "__src__transferencias_tiendas__" in lower_sql or "movtransferencias_tiendas" in lower_sql or "movtransfere" in lower_sql:
-            print("FAKE_EXEC matched transferencias")
-            return ["CodigoBarra"], [{"CodigoBarra": "D"}, {"CodigoBarra": "E"}]
-
-        if "__src__kardex__" in lower_sql or "tbheckardex" in lower_sql:
-            print("FAKE_EXEC matched kardex")
-            return ["CodigoBarra"], [{"CodigoBarra": "C"}, {"CodigoBarra": "D"}]
-
-        return ["CodigoBarra"], []
-
-    monkeypatch.setattr(unified, "execute_query", fake_execute_query)
-
-    try:
-        result = query_runner.get_common_barcodes(parameters)
-        assert result == ["D"]
-        # segunda llamada debe reutilizar snapshot (no volver a llamar execute_query)
-        with query_runner.query_cache._lock:
-            query_runner.query_cache._items.clear()
-        second = query_runner.get_common_barcodes(parameters)
-        assert second == ["D"]
-    finally:
-        reset_snapshot(snapshot_id)

@@ -60,6 +60,13 @@ export function filterRowsForCurrentPage(
   });
 }
 
+/** "Solo con ventas": deja las filas de la unificada que tienen unidades vendidas. */
+export function filterRowsWithSales(queryId: string | null, rows: Record<string, unknown>[], onlyWithSales: boolean) {
+  if (queryId !== "consulta_unificada" || !onlyWithSales) return rows;
+
+  return rows.filter((row) => toNumber(row["Unidades vendidas"]) > 0);
+}
+
 export function filterRowsByAdjustment(
   queryId: string | null,
   rows: Record<string, unknown>[],

@@ -128,3 +128,10 @@ class SnapshotStatus(BaseModel):
     query_id: str = Field(alias="queryId")
     ready: bool
     building: bool
+
+
+class Tienda(BaseModel):
+    codigo: str
+    nombre: str
+    zona: str
+    tipo: Literal["Tienda", "Bodega", "Otro"]

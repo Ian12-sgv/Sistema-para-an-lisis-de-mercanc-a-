@@ -11,8 +11,6 @@ from app.services.query_runner.columns import UNIFIED_BASE_COLUMNS, UNIFIED_COLU
 from app.services.query_runner.common import (
     COMMON_BARCODES_SNAPSHOT_QUERY_ID,
     SNAPSHOT_READ_BATCH_SIZE,
-    UNIFIED_SNAPSHOT_CHUNK_SIZE,
-    UNIFIED_SOURCE_QUERY_IDS,
     _building_snapshots,
     _snapshot_build_lock,
     build_cache_key,
@@ -25,13 +23,13 @@ from app.services.query_runner.common import (
 )
 from app.services.query_runner.snapshots import append_snapshot_from_snapshot
 from app.services.query_runner.sql import (
-    build_unified_base_detail_sql,
     build_unified_base_only_detail_sql,
     build_unified_common_codes_sql,
-    get_source_barcode_parameters,
-    get_source_barcode_sql,
+    build_unified_full_sql,
     load_unified_base_sql,
 )
+
+UNIFIED_FULL_SNAPSHOT_QUERY_ID = "consulta_unificada_full_v10"
 from app.services.unified_snapshot import (
     append_snapshot_rows,
     build_snapshot_id,
@@ -43,8 +41,9 @@ from app.services.unified_snapshot import (
 
 
 def get_common_barcodes(parameters: dict) -> list[str]:
+    """Códigos de la unificada para el rango, persistidos en un snapshot para no recalcularlos."""
     cache_parameters = get_cache_parameters("consulta_unificada", parameters)
-    cache_key = build_cache_key("common_barcodes_v11", "consulta_unificada", cache_parameters)
+    cache_key = build_cache_key("common_barcodes_v12", "consulta_unificada", cache_parameters)
     cached_codes = query_cache.get(cache_key)
 
     if cached_codes is not None:
@@ -64,21 +63,9 @@ def get_common_barcodes(parameters: dict) -> list[str]:
         query_cache.set(cache_key, result)
         return result
 
-    common_codes: set[str] | None = None
     fecha_desde = parse_date_parameter(cache_parameters.get("fechaDesde"), "fechaDesde")
     fecha_hasta = parse_date_parameter(cache_parameters.get("fechaHasta"), "fechaHasta")
-
-    for source_query_id in UNIFIED_SOURCE_QUERY_IDS:
-        ordered_parameters = get_source_barcode_parameters(source_query_id, fecha_desde, fecha_hasta)
-        _columns, rows = execute_query(get_source_barcode_sql(source_query_id), ordered_parameters)
-        codes = {str(row["CodigoBarra"]) for row in rows if row.get("CodigoBarra") is not None}
-
-        common_codes = codes if common_codes is None else common_codes.intersection(codes)
-
-        if not common_codes:
-            break
-
-    result = sorted(common_codes or [])
+    result = list(get_unified_common_codes(fecha_desde, fecha_hasta))
     reset_snapshot(common_codes_snapshot_id)
     next_row_index = append_snapshot_rows(
         common_codes_snapshot_id,
@@ -101,7 +88,7 @@ def build_unified_snapshot_exact(fecha_desde: date, fecha_hasta: date) -> tuple[
         "fechaDesde": fecha_desde.isoformat(),
         "fechaHasta": fecha_hasta.isoformat(),
     }
-    snapshot_id = build_snapshot_id("consulta_unificada_full_v7", cache_parameters)
+    snapshot_id = build_snapshot_id(UNIFIED_FULL_SNAPSHOT_QUERY_ID, cache_parameters)
     metadata = get_snapshot_metadata(snapshot_id)
 
     if metadata is not None:
@@ -110,33 +97,14 @@ def build_unified_snapshot_exact(fecha_desde: date, fecha_hasta: date) -> tuple[
 
     reset_snapshot(snapshot_id)
 
-    common_barcodes = get_common_barcodes(cache_parameters)
-    base_sql = load_unified_base_sql()
-    snapshot_columns = UNIFIED_COLUMNS
-    next_row_index = 0
-
-    for index in range(0, len(common_barcodes), UNIFIED_SNAPSHOT_CHUNK_SIZE):
-        chunk_codes = common_barcodes[index : index + UNIFIED_SNAPSHOT_CHUNK_SIZE]
-
-        if not chunk_codes:
-            continue
-
-        columns, rows = execute_query(
-            build_unified_base_detail_sql(base_sql, len(chunk_codes)),
-            [
-                fecha_desde,
-                fecha_hasta,
-                fecha_desde,
-                fecha_hasta,
-                fecha_desde,
-                fecha_hasta,
-                fecha_desde,
-                fecha_hasta,
-                *chunk_codes,
-            ],
-        )
-        snapshot_columns = columns or snapshot_columns
-        next_row_index = append_snapshot_rows(snapshot_id, next_row_index, rows)
+    # Una sola consulta para todo el rango: los pasos con tablas temporales ya limitan
+    # el trabajo a los códigos que cumplen la regla, así que no hace falta trocear por códigos.
+    columns, rows = execute_query(
+        build_unified_full_sql(load_unified_base_sql()),
+        [fecha_desde, fecha_hasta, fecha_desde, fecha_hasta],
+    )
+    snapshot_columns = columns or UNIFIED_COLUMNS
+    next_row_index = append_snapshot_rows(snapshot_id, 0, rows)
 
     finalize_snapshot(snapshot_id, cache_parameters, snapshot_columns, next_row_index)
 
@@ -151,7 +119,7 @@ def find_cached_unified_range(start_date: date, max_end_date: date) -> tuple[dat
             "fechaDesde": start_date.isoformat(),
             "fechaHasta": current_end.isoformat(),
         }
-        snapshot_id = build_snapshot_id("consulta_unificada_full_v7", cache_parameters)
+        snapshot_id = build_snapshot_id(UNIFIED_FULL_SNAPSHOT_QUERY_ID, cache_parameters)
         metadata = get_snapshot_metadata(snapshot_id)
 
         if metadata is not None:
@@ -171,7 +139,7 @@ def build_unified_snapshot_incremental(fecha_desde: date, fecha_hasta: date) -> 
         "fechaDesde": fecha_desde.isoformat(),
         "fechaHasta": fecha_hasta.isoformat(),
     }
-    snapshot_id = build_snapshot_id("consulta_unificada_full_v7", cache_parameters)
+    snapshot_id = build_snapshot_id(UNIFIED_FULL_SNAPSHOT_QUERY_ID, cache_parameters)
     metadata = get_snapshot_metadata(snapshot_id)
 
     if metadata is not None:
@@ -222,7 +190,7 @@ def get_unified_snapshot_id(parameters: dict) -> str:
         raise ValueError("fechaHasta must be greater than or equal to fechaDesde.")
 
     return build_snapshot_id(
-        "consulta_unificada_full_v7",
+        UNIFIED_FULL_SNAPSHOT_QUERY_ID,
         {
             "fechaDesde": fecha_desde.isoformat(),
             "fechaHasta": fecha_hasta.isoformat(),
@@ -260,7 +228,7 @@ def get_unified_common_codes(fecha_desde: date, fecha_hasta: date) -> list[str]:
     tenía que calcular todo el conjunto igualmente, así que paginar costaba lo mismo que la página 1.
     """
     cache_key = build_cache_key(
-        "unified_common_codes_v1",
+        "unified_common_codes_v2",
         "consulta_unificada",
         {"fechaDesde": fecha_desde.isoformat(), "fechaHasta": fecha_hasta.isoformat()},
     )
@@ -271,7 +239,7 @@ def get_unified_common_codes(fecha_desde: date, fecha_hasta: date) -> list[str]:
 
     _columns, code_rows = execute_query(
         build_unified_common_codes_sql(),
-        [fecha_desde, fecha_hasta] * 4,
+        [fecha_desde, fecha_hasta],
     )
     codes = [str(row["CodigoBarra"]) for row in code_rows if row.get("CodigoBarra") is not None]
     query_cache.set(cache_key, codes)

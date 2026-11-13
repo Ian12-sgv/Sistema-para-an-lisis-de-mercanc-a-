@@ -10,14 +10,12 @@ from app.models.query import QueryDefinition
 
 
 MAX_PAGE_SIZE = 1000
-UNIFIED_SNAPSHOT_CHUNK_SIZE = 500
 UNIFIED_FIRST_PAGE_CODE_BATCH_SIZE = 100
 SNAPSHOT_READ_BATCH_SIZE = 1000
 SNAPSHOT_QUERY_IDS = {"consulta_base", "ventas", "kardex"}
 ASYNC_SNAPSHOT_QUERY_IDS = {"kardex"}
 DAILY_MATERIALIZED_QUERY_IDS = {"ventas"}
-UNIFIED_SOURCE_QUERY_IDS = ["consulta_base", "ventas", "kardex", "transferencias_tiendas"]
-COMMON_BARCODES_SNAPSHOT_QUERY_ID = "consulta_unificada_common_barcodes_v3"
+COMMON_BARCODES_SNAPSHOT_QUERY_ID = "consulta_unificada_common_barcodes_v4"
 UNIFIED_FILTERS = {
     "codigoBarra": ["Codigo Barra", "CodigoBarra"],
     "referencia": ["Referencias", "Referencia"],

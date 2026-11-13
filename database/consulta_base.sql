@@ -39,6 +39,10 @@ SELECT
         PARTITION BY M.[CodigoBarra]
       ) AS [Suma Unidades Compra]
 
+      -- Datos de despacho
+    , C.[DespacharA]
+    , C.[NumeroContenedor]
+
 FROM [J101010100_999911].[dbo].[COMPRAS] AS C
 
 INNER JOIN [J101010100_999911].[dbo].[MOVCOMPRAS] AS M
@@ -75,3 +79,7 @@ LEFT JOIN [J101010100_999911].[dbo].[CATEGORIAS] AS CC
 WHERE C.IDLote <> 001
   AND C.[Fecha] >= '2024-01-01'
   AND C.[Fecha] < DATEADD(DAY, 1, CAST(GETDATE() AS DATE))
+
+-- El backend agrega su propio ORDER BY (query_catalog.py); dejar esta linea comentada.
+-- Para ejecutar en SSMS con el mismo orden que la app, descomentar:
+-- ORDER BY C.[Fecha], C.[Documento], C.[Proveedor], M.[CodigoBarra]

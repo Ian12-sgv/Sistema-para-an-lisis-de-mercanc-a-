@@ -39,6 +39,10 @@ SELECT
         PARTITION BY M.[CodigoBarra]
       ) AS [Suma Unidades Compra]
 
+      -- Datos de despacho
+    , C.[DespacharA]
+    , C.[NumeroContenedor]
+
 FROM [J101010100_999911].[dbo].[COMPRAS] AS C
 
 INNER JOIN [J101010100_999911].[dbo].[MOVCOMPRAS] AS M

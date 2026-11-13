@@ -4,6 +4,7 @@ import {
   buildQueryRunParameters,
   filterRowsByAdjustment,
   filterRowsForCurrentPage,
+  filterRowsWithSales,
   type TableFilters,
 } from "./queryFilters";
 
@@ -163,5 +164,25 @@ describe("query filters", () => {
 
     const filtered = filterRowsForCurrentPage("ventas", rows, tableFilters);
     expect(filtered).toEqual([rows[1]]);
+  });
+});
+
+describe("filterRowsWithSales", () => {
+  const rows = [
+    { "Codigo Barra": "1", "Unidades vendidas": 3, Vendido: 30, Quedan: 7 },
+    { "Codigo Barra": "2", "Unidades vendidas": 0, Vendido: "", Quedan: "" },
+    { "Codigo Barra": "3" },
+  ];
+
+  it("shows every row when the filter is off", () => {
+    expect(filterRowsWithSales("consulta_unificada", rows, false)).toEqual(rows);
+  });
+
+  it("keeps only rows with sold units when the filter is on", () => {
+    expect(filterRowsWithSales("consulta_unificada", rows, true)).toEqual([rows[0]]);
+  });
+
+  it("does not touch other queries", () => {
+    expect(filterRowsWithSales("ventas", rows, true)).toEqual(rows);
   });
 });

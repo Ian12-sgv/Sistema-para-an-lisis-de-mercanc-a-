@@ -18,7 +18,9 @@ from app.services.query_runner.common import (
     row_barcode,
     to_float,
 )
-from app.services.query_runner.sql import build_kardex_detail_raw_sql
+from app.services.query_runner.sql import build_existencia_por_tienda_sql, build_kardex_detail_raw_sql
+
+STORE_EXISTENCE_PARAMETER = "tiendaExistencia"
 
 
 def group_rows_by_barcode(rows: list[dict]) -> dict[str, list[dict]]:
@@ -53,6 +55,7 @@ def summarize_sales_detail(rows: list[dict], base_metrics: dict[str, dict]) -> l
 
         metric = base_metrics.get(barcode, {})
         initial_cost = to_float(metric.get("costoInicial")) or to_float(first_row.get("CostoDolar"))
+        purchased_units = to_float(metric.get("sumaUnidadesCompras"))
 
         summaries.append(
             {
@@ -60,6 +63,10 @@ def summarize_sales_detail(rows: list[dict], base_metrics: dict[str, dict]) -> l
                 "Existencia actual": round_metric(to_float(first_row.get("Existencia"))),
                 "Suma Existencia": round_metric(sum_existence),
                 "Unidades vendidas": round_metric(units_sold),
+                # Solo por ventas: si no hubo ventas (o no hay compras) quedan vacías.
+                # Vendido = % de lo comprado (Suma Unidades Compras) que se vendió; Quedan = comprado - vendido.
+                "Vendido": round_metric(units_sold / purchased_units * 100) if purchased_units and units_sold > 0 else "",
+                "Quedan": round_metric(purchased_units - units_sold) if purchased_units and units_sold > 0 else "",
                 "Suma Cantidades ventas": first_row.get("Suma Cantidades ventas") or units_sold,
                 "NumeroFactura": first_row.get("NumeroFactura"),
                 "FechaVenta": first_row.get("FechaVenta"),
@@ -74,6 +81,69 @@ def summarize_sales_detail(rows: list[dict], base_metrics: dict[str, dict]) -> l
         )
 
     return summaries
+
+
+def format_quantity(value: float) -> str:
+    rounded = round_metric(value)
+    return str(int(rounded)) if float(rounded).is_integer() else str(rounded)
+
+
+def parse_store_codes(parameters: dict) -> set[str]:
+    raw = str(parameters.get(STORE_EXISTENCE_PARAMETER) or "")
+    return {code.strip() for code in raw.split(",") if code.strip()}
+
+
+def apply_store_existence(summaries: list[dict], existence_rows: list[dict], store_codes: set[str]) -> None:
+    """Reemplaza la existencia que venía de ventas por la existencia real por tienda/bodega.
+
+    - "Suma Existencia": total del código en todas las tiendas y bodegas activas, cada una una vez.
+    - "Existencia actual": suma de las tiendas/bodegas elegidas; sin elección, el mismo total.
+    - "Existencia por tienda": nombre y cantidad de cada tienda/bodega con existencia
+      (solo las elegidas, si hay elección), de mayor a menor.
+    """
+    totals: dict[str, float] = {}
+    by_store: dict[str, dict[str, dict]] = {}
+
+    for row in existence_rows:
+        barcode = str(row.get("CodigoBarra") or "").strip()
+        store = str(row.get("CodigoTienda") or "").strip()
+
+        if not barcode:
+            continue
+
+        quantity = to_float(row.get("Existencia"))
+        totals[barcode] = totals.get(barcode, 0.0) + quantity
+        entry = by_store.setdefault(barcode, {}).setdefault(
+            store,
+            {"nombre": str(row.get("NombreTienda") or store).strip(), "cantidad": 0.0},
+        )
+        entry["cantidad"] += quantity
+
+    for summary in summaries:
+        barcode = str(summary.get("Codigo Barra") or "").strip()
+        stores = by_store.get(barcode, {})
+        selected = {code: data for code, data in stores.items() if not store_codes or code in store_codes}
+        with_stock = sorted(
+            (data for data in selected.values() if data["cantidad"] > 0),
+            key=lambda data: (-data["cantidad"], data["nombre"]),
+        )
+
+        summary["Existencia actual"] = round_metric(sum(data["cantidad"] for data in selected.values()))
+        summary["Suma Existencia"] = round_metric(totals.get(barcode, 0.0))
+        summary["Existencia por tienda"] = " | ".join(
+            f"{data['nombre']}: {format_quantity(data['cantidad'])}" for data in with_stock
+        )
+
+
+def load_store_existence(summaries: list[dict], parameters: dict) -> None:
+    barcodes = [str(summary.get("Codigo Barra") or "").strip() for summary in summaries]
+    barcodes = [barcode for barcode in barcodes if barcode]
+
+    if not barcodes:
+        return
+
+    _columns, existence_rows = execute_query(build_existencia_por_tienda_sql(), [",".join(barcodes)])
+    apply_store_existence(summaries, existence_rows, parse_store_codes(parameters))
 
 
 def summarize_kardex_detail(rows: list[dict], base_metrics: dict[str, dict]) -> list[dict]:
@@ -150,6 +220,7 @@ def run_unified_detail_query(query_id: str, parameters: dict, page: int = 1, pag
         raw_columns, raw_rows = execute_query(load_query_sql(definition), build_ordered_parameters(definition, parameters))
         columns = SALES_DETAIL_COLUMNS
         rows = summarize_sales_detail(raw_rows, base_metrics)
+        load_store_existence(rows, parameters)
     elif query_id == "transferencias_tiendas":
         definition = get_query("transferencias_tiendas")
         raw_columns, raw_rows = execute_query(load_query_sql(definition), build_ordered_parameters(definition, parameters))
